@@ -1,0 +1,169 @@
+/* Layout & positioning redesign — visual arrangement only. */
+
+/* ---------- Page headings: editorial, left-weighted with underline rule ---------- */
+.main-content .page-heading {
+  align-items: flex-end;
+  padding-bottom: 22px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.main-content .page-heading h1 {
+  font-size: 34px;
+  line-height: 1.15;
+}
+.main-content .page-heading p {
+  max-width: 520px;
+}
+
+/* ---------- Dashboard: asymmetric composition ---------- */
+.stats-grid {
+  gap: 0 !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--card);
+}
+.stats-grid > * {
+  border-radius: 0 !important;
+}
+.stats-grid .card {
+  border: 0 !important;
+  border-right: 1px solid var(--border) !important;
+  height: 100%;
+}
+.stats-grid > *:last-child .card {
+  border-right: 0 !important;
+}
+
+.dashboard-shortcuts {
+  justify-content: flex-end;
+}
+
+.dashboard-middle,
+.dashboard-bottom {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: stretch;
+}
+.dashboard-middle > *,
+.dashboard-bottom > * {
+  grid-column: auto !important;
+  min-width: 0;
+}
+/* Mirror the second row so the page zig-zags */
+.dashboard-bottom {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.75fr);
+}
+.dashboard-bottom > *:first-child {
+  order: 2;
+}
+.dashboard-bottom > *:last-child {
+  order: 1;
+}
+.dashboard-bottom > *:only-child {
+  grid-column: 1 / -1 !important;
+}
+
+/* ---------- Rooms & property ---------- */
+.property-summary {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--card);
+}
+.property-summary .property-metric {
+  border: 0;
+  border-radius: 0;
+  border-right: 1px solid var(--border);
+}
+.property-summary .property-metric:last-child {
+  border-right: 0;
+}
+.property-summary .property-metric > strong {
+  font-size: 30px;
+}
+.amenity-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.property-columns {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+}
+.property-columns > *:first-child {
+  order: 2;
+}
+.property-type-grid .card:first-child {
+  grid-row: span 2;
+  justify-content: flex-end;
+}
+
+/* ---------- Amenities & staff: featured first card ---------- */
+.staff-work-grid {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+}
+
+/* ---------- Tablet ---------- */
+@media (max-width: 1200px) {
+  .property-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .property-summary .property-metric:nth-child(3n) {
+    border-right: 0;
+  }
+  .property-summary .property-metric:nth-child(-n + 3) {
+    border-bottom: 1px solid var(--border);
+  }
+}
+@media (max-width: 1024px) {
+  .dashboard-middle,
+  .dashboard-bottom {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-bottom > *:first-child {
+    order: 0;
+  }
+  .stats-grid .card {
+    border-bottom: 1px solid var(--border) !important;
+  }
+}
+@media (max-width: 900px) {
+  .property-columns,
+  .staff-work-grid {
+    grid-template-columns: 1fr;
+  }
+  .property-columns > *:first-child {
+    order: 0;
+  }
+  .property-type-grid .card:first-child {
+    grid-row: auto;
+  }
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 620px) {
+  .main-content .page-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .main-content .page-heading h1 {
+    font-size: 26px;
+  }
+  .stats-grid .card {
+    border-right: 0 !important;
+  }
+  .property-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .property-summary .property-metric {
+    border-right: 1px solid var(--border) !important;
+    border-bottom: 1px solid var(--border);
+  }
+  .property-summary .property-metric:nth-child(2n) {
+    border-right: 0 !important;
+  }
+  .dashboard-shortcuts {
+    justify-content: stretch;
+  }
+}

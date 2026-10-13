@@ -1,0 +1,114 @@
+{
+  "routes": {
+    "screens": "dashboard: Dashboard,\r\n  reservations: Reservations,\r\n  rooms: Rooms,\r\n  amenities: Amenities,\r\n  tasks: Tasks,\r\n  services: Services,\r\n  billing: Billing,\r\n  guests: Guests,\r\n  profile: Profile,\r\n  team: Team,\r\n  support: Support,\r\n  loyalty: Loyalty,\r\n  reviews: Reviews,\r\n  reports: Reports,\r\n  accounts: Accounts,\r\n  permissions: Permissions,\r\n  audit: Audit,\r\n  settings: Settings,\r\n  promotions: Promotions,",
+    "access": "Guest: [\r\n    'amenities',\r\n    'dashboard',\r\n    'reservations',\r\n    'services',\r\n    'billing',\r\n    'profile',\r\n    'support',\r\n    'loyalty',\r\n    'reviews',\r\n  ],\r\n  Management: [\r\n    'amenities',\r\n    'dashboard',\r\n    'reservations',\r\n    'rooms',\r\n    'tasks',\r\n    'services',\r\n    'billing',\r\n    'guests',\r\n    'team',\r\n    'support',\r\n    'reports',\r\n    'settings',\r\n    'promotions',\r\n  ],\r\n  Staff: [\r\n    'dashboard',\r\n    'reservations',\r\n    'rooms',\r\n    'tasks',\r\n    'services',\r\n    'billing',\r\n    'guests',\r\n    'team',\r\n    'support',\r\n    'reports',\r\n    'settings',\r\n    'promotions',\r\n  ],\r\n  Owner: [\r\n    'amenities',\r\n    'dashboard',\r\n    'rooms',\r\n    'billing',\r\n    'reports',\r\n    'accounts',\r\n    'permissions',\r\n    'audit',\r\n    'settings',\r\n  ],"
+  },
+  "pages": [
+    "Administration.tsx",
+    "Amenities.tsx",
+    "Billing.tsx",
+    "Dashboard.tsx",
+    "Login.tsx",
+    "Operations.tsx",
+    "People.tsx",
+    "Reservations.tsx",
+    "RoomManagement.tsx",
+    "StaffDashboard.tsx"
+  ],
+  "tabs": {
+    "Administration.tsx": [
+      "['Daily', 'Weekly', 'Monthly', 'Yearly'].map((x) => ({ value: x, label: x ",
+      "tabs.map((x) => ({ value: x, label: x "
+    ],
+    "Amenities.tsx": ["tabs.map(value => ({ value, label: value "],
+    "Operations.tsx": ["tabsConfig"],
+    "People.tsx": ["['All', 'Open', 'In progress', 'Resolved'].map((x) => ({ value: x, label: x "],
+    "RoomManagement.tsx": [
+      "tabs.map(value => ({ value, label: value ",
+      "'Overview', 'All rooms', 'Room types', 'Pricing', 'Availability', 'Maintenance', ...(owner ? ['Performance'"
+    ]
+  },
+  "forms": {
+    "RoomManagement.tsx": [["status", "transferRoomId", "notes"]]
+  },
+  "modals": {
+    "Administration.tsx": ["\"Demo"],
+    "Amenities.tsx": ["detail.name", "amenity"],
+    "Operations.tsx": ["`Room", "x.name", ""],
+    "People.tsx": ["selected.name", "c.subject"],
+    "Reservations.tsx": ["created", "\"Guest"],
+    "RoomManagement.tsx": ["`Room", "`Resolve", "room", "\"Add", "`Change"]
+  },
+  "buttons": {
+    "Amenities.tsx": [
+      "setDetailId(a.id)}> View",
+      "setForm(a)}>Edit",
+      "setConfirm({ item: a, kind: 'delete' })}>Delete",
+      "setForm('new')}>Add amenity",
+      "Reset filters",
+      "{ changeTab('All amenities'); setCategory(c); }}>View category",
+      "setDetailId(a.id)}>Details",
+      "setConfirm({ item: a, kind: 'use' })}>{a.maintenance ? 'Unavailable' : !stay ? 'Available after check-in' : 'Record visit'}",
+      "{ setDetailId(''); setForm(detail); }}>Edit amenity",
+      "{ setDetailId(''); setConfirm({ item: detail, kind: 'toggle' }); }}>{detail.active ? 'Deactivate' : 'Activate'}",
+      "{ setDetailId(''); setConfirm({ item: detail, kind: 'maintenance' }); }}>{detail.maintenance ? 'Resolve maintenance' : 'Mark maintenance'}",
+      "{ setDetailId(''); setConfirm({ item: detail, kind: 'delete' }); }}>Delete amenity",
+      "{ setDetailId(''); setConfirm({ item: detail, kind: 'use' }); }}>Record visit",
+      "setDetailId('')}>Close",
+      "Add",
+      "{ setAddingCategory(false); setNewCategory(''); }} style={{ height: '42px', padding: '0 16px' }}>Cancel",
+      "Cancel",
+      "{amenity ? 'Save amenity' : 'Add amenity'}"
+    ],
+    "Dashboard.tsx": [
+      "go('rooms?status=Maintenance')}>Maintenance · {s.rooms.filter(r => roomStatus(s, r) === 'Maintenance').length}",
+      "go('amenities')}>Amenities · {s.amenities.length}",
+      "go('guests')}>Guests · {s.guests.length}",
+      "go(owner ? 'accounts' : 'team')}>Team · {s.accounts.filter(a => a.module === 'Staff' && a.active).length}",
+      "navigate('/guest/support')}>Contact reception"
+    ],
+    "Operations.tsx": ["{ setSearch(''); setTaskParams({}); setTab('All tasks'); }}>Reset filters"],
+    "People.tsx": ["setCreate(true)}>Write a review"],
+    "RoomManagement.tsx": [
+      "setSelectedId(r.id)}> View",
+      "setForm(r)}>Edit",
+      "setDeleteRoom(r)}>Delete",
+      "setForm('new')}>Add room",
+      "Reset filters",
+      "setParams({ tab: 'All rooms', type: t })}>View rooms",
+      "!owner && can(s, actor!, 'reservations') ? navigate(`/${actor!.module.toLowerCase()}/reservations?new=1&room=${r.id}&checkIn=${start}&checkOut=${end}`) : setSelectedId(r.id)}>{owner ? 'View room' : 'Reserve room'}",
+      "setView('list')}>",
+      "setView('grid')}>",
+      "{ setSelectedId(''); setDeleteRoom(selected); }}>Delete room",
+      "{ setSelectedId(''); setForm(selected); }}>Edit room",
+      "{ setSelectedId(''); setStatusRoom(selected); }}>Change status",
+      "{ setSelectedId(''); setToggleRoom(selected); }}>{selected.active === false ? 'Activate room' : 'Deactivate room'}",
+      "{ setSelectedId(''); setCleaningRequired(true); setResolveRoom(selected); }}>Resolve issue",
+      "{ setSelectedId(''); setTaskRoom(selected.id); }}>Create operational task",
+      "setSelectedId('')}>Close",
+      "setResolveRoom(null)}>Cancel",
+      "{ if (act({ type: 'room.resolve', payload: { id: resolveRoom.id, cleaningRequired } }, cleaningRequired ? 'Issue resolved. Housekeeping task created.' : 'Issue resolved. Room is available.')) setResolveRoom(null); }}>Confirm resolution",
+      "Cancel",
+      "{room ? 'Save room' : 'Add room'}",
+      "{ setAddingType(false); setNewType(''); }}>Cancel",
+      "Add room type",
+      "Save status"
+    ],
+    "StaffDashboard.tsx": [
+      "go('reservations?new=1')}>New reservation",
+      "go('tasks?new=1')}>Report an issue",
+      "go('tasks')}>My tasks",
+      "go('services')}>My service requests",
+      "go('billing')}>Bills & payments",
+      "go('support')}>Guest support",
+      "go('reservations')}>All reservations",
+      "go(`reservations/${r.id}`)}>Manage stay",
+      "go('tasks')}>View all",
+      "act({ type: 'task.update', payload: { id: t.id, status: nextTask(t) } }, 'Task and room status updated')}>{t.status === 'Pending' ? 'Start work' : nextTask(t) === 'Inspection' ? 'Request inspection' : 'Complete task'}",
+      "go('services')}>View all",
+      "act({ type: 'service.update', payload: { id: x.id, status: x.status === 'Requested' ? 'Accepted' : x.status === 'Accepted' ? 'In progress' : 'Completed' } }, x.status === 'In progress' ? 'Service completed. Charge added to the folio.' : 'Service updated')}>{x.status === 'Requested' ? 'Accept request' : x.status === 'Accepted' ? 'Start service' : 'Complete & add charge'}",
+      "go(`billing?reservation=${r.id}`)}>Open folio"
+    ]
+  },
+  "api": []
+}
