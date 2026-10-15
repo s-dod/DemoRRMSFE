@@ -22,7 +22,7 @@ export default function Login() {
   const [showAccountList, setShowAccountList] = useState(false);
 
   const presets = [
-    { label: 'SUPER_ADMIN', email: 'admin@rrms.demo', pass: 'Admin@123', module: 'SuperAdmin' },
+    { label: 'Super Admin', email: 'admin@rrms.demo', pass: 'Admin@123', module: 'SuperAdmin' },
     { label: 'Owner', email: 'owner@rrms.demo', pass: 'Resort@123', module: 'Owner' },
     { label: 'Manager', email: 'management@rrms.demo', pass: 'Resort@123', module: 'Management' },
     { label: 'Receptionist', email: 'receptionist@rrms.demo', pass: 'Resort@123', module: 'Staff' },
@@ -122,22 +122,31 @@ export default function Login() {
           </div>
 
           <div className="flex flex-wrap gap-1.5 mb-3">
-            {presets.map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => handleSelectPreset(p.email, p.pass, p.module)}
-                className={`px-2.5 py-1 rounded text-xs font-semibold border transition-all ${
-                  email === p.email
-                    ? 'bg-[#C9A227] text-white border-[#C9A227]'
-                    : p.label === 'SUPER_ADMIN'
-                      ? 'bg-[#1F3A2E] text-white border-[#1F3A2E] hover:bg-[#2A4D3E]'
-                      : 'bg-[#FAF7F2] text-[#1F3A2E] border-[#F0EBE1] hover:border-[#C9A227]'
-                }`}
-              >
-                {p.label === 'SUPER_ADMIN' ? '🛡️ SUPER_ADMIN' : p.label}
-              </button>
-            ))}
+            {presets.map((p) => {
+              const isSelected = email === p.email;
+              const isSuperAdmin = p.module === 'SuperAdmin';
+              return (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => handleSelectPreset(p.email, p.pass, p.module)}
+                  className={`px-2.5 py-1 rounded text-xs font-semibold border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#C9A227] text-white border-[#C9A227] shadow-xs'
+                      : isSuperAdmin
+                        ? 'bg-[#FAF7F2] text-[#1F3A2E] border-[#D9CCA8] hover:border-[#C9A227] hover:bg-[#F5EFE6]'
+                        : 'bg-[#FAF7F2] text-[#1F3A2E] border-[#F0EBE1] hover:border-[#C9A227] hover:bg-[#F5EFE6]'
+                  }`}
+                  style={{
+                    backgroundColor: isSelected ? '#C9A227' : '#FAF7F2',
+                    color: isSelected ? '#ffffff' : '#1F3A2E',
+                    borderColor: isSelected ? '#C9A227' : isSuperAdmin ? '#D9CCA8' : '#F0EBE1',
+                  }}
+                >
+                  {isSuperAdmin ? '🛡️ Super Admin' : p.label}
+                </button>
+              );
+            })}
           </div>
 
           <button

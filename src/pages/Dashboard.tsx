@@ -1451,43 +1451,39 @@ function OperationsDashboard() {
             <div className="space-y-3">
               {/* Filter tabs */}
               <div className="flex items-center gap-1.5 border-b border-[#F0EBE1] pb-2 overflow-x-auto">
-                {(['ALL', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const).map((st) => (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => setOwnerTicketFilter(st)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                      ownerTicketFilter === st
-                        ? 'bg-[#1F3A2E] text-white'
-                        : 'bg-[#FAF7F2] text-[#6B7160] hover:bg-[#F5EFE6]'
-                    }`}
-                  >
-                    {st === 'ALL'
-                      ? `All (${myTickets.length})`
-                      : st === 'OPEN'
-                        ? `Open (${myTickets.filter((t) => t.status === 'OPEN').length})`
-                        : st === 'IN_PROGRESS'
-                          ? `In Progress (${myTickets.filter((t) => t.status === 'IN_PROGRESS').length})`
-                          : st === 'RESOLVED'
-                            ? `Resolved (${myTickets.filter((t) => t.status === 'RESOLVED').length})`
-                            : `Closed (${myTickets.filter((t) => t.status === 'CLOSED').length})`}
-                  </button>
-                ))}
+                {(['ALL', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const).map((st) => {
+                  const isActive = ownerTicketFilter === st;
+                  return (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setOwnerTicketFilter(st)}
+                      className={`ticket-filter-pill px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                        isActive ? 'active' : ''
+                      }`}
+                      style={{
+                        backgroundColor: isActive ? '#1F3A2E' : '#FAF7F2',
+                        color: isActive ? '#ffffff' : '#37433B',
+                        borderColor: isActive ? '#1F3A2E' : '#E2D7C5',
+                      }}
+                    >
+                      {st === 'ALL'
+                        ? `All (${myTickets.length})`
+                        : st === 'OPEN'
+                          ? `Open (${myTickets.filter((t) => t.status === 'OPEN').length})`
+                          : st === 'IN_PROGRESS'
+                            ? `In Progress (${myTickets.filter((t) => t.status === 'IN_PROGRESS').length})`
+                            : st === 'RESOLVED'
+                              ? `Resolved (${myTickets.filter((t) => t.status === 'RESOLVED').length})`
+                              : `Closed (${myTickets.filter((t) => t.status === 'CLOSED').length})`}
+                    </button>
+                  );
+                })}
               </div>
 
               {filteredOwnerTickets.length === 0 ? (
-                <div className="py-8 text-center text-xs text-[#6B7160] space-y-2">
+                <div className="py-8 text-center text-xs text-[#6B7160]">
                   <p>No tickets match the selected status.</p>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setOwnerTicketsOpen(false);
-                      setCreateTicketOpen(true);
-                    }}
-                    className="bg-[#1F3A2E] hover:bg-[#2B4C3E] text-white text-xs inline-flex items-center gap-1.5"
-                  >
-                    <Plus size={13} /> Create New Ticket
-                  </Button>
                 </div>
               ) : (
                 <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
@@ -1558,18 +1554,7 @@ function OperationsDashboard() {
           )}
         </div>
 
-        <div className="dialog-footer flex justify-between items-center">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setOwnerTicketsOpen(false);
-              setCreateTicketOpen(true);
-            }}
-            className="text-xs flex items-center gap-1"
-          >
-            <Plus size={13} /> New Ticket
-          </Button>
+        <div className="dialog-footer flex justify-end items-center">
           <Button
             type="button"
             onClick={() => {

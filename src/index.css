@@ -6145,3 +6145,31 @@ td small {
 .star-rating-input button.active {
   color: #d4b77a;
 }
+
+/* Owner Ticket Filter Pill Tabs */
+.ticket-filter-pill {
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  user-select: none;
+}
+.ticket-filter-pill.active {
+  background-color: #1F3A2E !important;
+  color: #ffffff !important;
+  border-color: #1F3A2E !important;
+}
+.ticket-filter-pill.active:hover {
+  background-color: #2B4C3E !important;
+  color: #ffffff !important;
+  border-color: #2B4C3E !important;
+}
+.ticket-filter-pill:not(.active) {
+  background-color: #FAF7F2 !important;
+  color: #37433B !important;
+  border-color: #E2D7C5 !important;
+}
+.ticket-filter-pill:not(.active):hover {
+  background-color: #EDE4D5 !important;
+  color: #132219 !important;
+  border-color: #CFC2AC !important;
+}
+
