@@ -91,6 +91,13 @@ export function normalizeState(s: State): State {
   s.ownerPropertyAdmin ??= true;
   s.tenants ??= initialTenants();
   s.platformTickets ??= initialPlatformTickets();
+  // Clear legacy mock resolution note on in-progress ticket TK-101 if previously persisted
+  if (s.platformTickets) {
+    const tk101 = s.platformTickets.find((t) => t.id === 'TK-101');
+    if (tk101 && tk101.resolutionNotes?.includes('Allocated dedicated gateway proxy socket')) {
+      tk101.resolutionNotes = '';
+    }
+  }
   s.platformConfig ??= initialPlatformConfig();
   s.platformAudit ??= initialPlatformAudit();
   if (!s.accounts.some((a) => a.module === 'SuperAdmin')) {

@@ -103,19 +103,54 @@ export interface Tenant {
   roomsCount?: number;
 }
 
+export interface TicketAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+}
+
+export interface TicketReply {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole: string;
+  message: string;
+  attachments?: TicketAttachment[];
+  timestamp: string;
+}
+
+export interface TicketHistoryEntry {
+  id: string;
+  timestamp: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  details?: string;
+}
+
 export interface PlatformTicket {
   id: string;
   tenantCode: string;
   resortName: string;
   ownerName: string;
   ownerEmail: string;
+  creatorId?: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  assigneeEmail?: string;
   title: string;
   category: string;
   priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
   description: string;
+  attachments?: TicketAttachment[];
+  replies?: TicketReply[];
+  history?: TicketHistoryEntry[];
   resolutionNotes?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface PlatformConfig {
@@ -609,7 +644,7 @@ export function initialPlatformTickets(): PlatformTicket[] {
       priority: 'CRITICAL',
       status: 'IN_PROGRESS',
       description: 'HDFC payment gateway webhooks experiencing high latency during peak checkout turnovers. Folio payments show temporary pending state.',
-      resolutionNotes: 'Allocated dedicated gateway proxy socket and increased read timeout to 15s. Telemetry monitoring ongoing.',
+      resolutionNotes: '',
       createdAt: '2026-09-20T10:15:00Z',
     },
     {
@@ -1211,7 +1246,12 @@ export function applyCommand(previous: State, actorId: string, command: Command)
   const s: State = structuredClone(previous);
   const a = s.accounts.find((x) => x.id === actorId);
   assert(a?.active, 'This account is inactive. Sign in with an active demo account.');
-  if (a.module === 'SuperAdmin' && !command.type.startsWith('superadmin.') && command.type !== 'login') {
+  if (
+    a.module === 'SuperAdmin' &&
+    !command.type.startsWith('superadmin.') &&
+    !command.type.startsWith('ticket.') &&
+    command.type !== 'login'
+  ) {
     throw new Error(
       'Super Admin operates at platform level (tenantId=null) and cannot manage tenant operations, rooms, bookings, guests, staff, housekeeping, payments, or tenant reports.',
     );
@@ -2249,12 +2289,137 @@ export function applyCommand(previous: State, actorId: string, command: Command)
       ];
       break;
     }
-    case 'superadmin.ticket.update': {
-      assert(a.module === 'SuperAdmin', 'Only Super Admin can update platform support tickets.');
+    case 'superadmin.ticket.update':
+    case 'ticket.update': {
+      if (command.type === 'superadmin.ticket.update') {
+        assert(a.module === 'SuperAdmin', 'Only Super Admin can update platform support tickets.');
+      } else {
+        assert(
+          a.module === 'SuperAdmin' || a.module === 'Owner' || a.module === 'Management',
+          'Unauthorized to update tickets.',
+        );
+      }
       const ticket = s.platformTickets?.find((x) => x.id === p.id);
       assert(ticket, 'Ticket not found.');
-      if (p.status) ticket.status = p.status;
-      if (p.resolutionNotes !== undefined) ticket.resolutionNotes = String(p.resolutionNotes).trim();
+      if (!ticket.history) ticket.history = [];
+      if (!ticket.replies) ticket.replies = [];
+
+      // Status update
+      if (p.status && p.status !== ticket.status) {
+        assert(
+          ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'].includes(p.status),
+          'Invalid ticket status.',
+        );
+        const oldStatus = ticket.status;
+        ticket.status = p.status;
+        ticket.history.push({
+          id: uid('TH'),
+          timestamp: now,
+          actorName: a.name,
+          actorRole: a.role,
+          action: 'STATUS_CHANGED',
+          details: `Status transitioned from ${oldStatus} to ${p.status}`,
+        });
+
+        // Notifications on status change
+        if (a.module === 'SuperAdmin') {
+          s.notifications.unshift({
+            id: uid('N'),
+            title: `Ticket #${ticket.id} ${p.status === 'CLOSED' ? 'Closed' : p.status === 'RESOLVED' ? 'Resolved' : 'Updated'}`,
+            message: `Your ticket "${ticket.title}" has been updated to ${p.status}.`,
+            date: now,
+            audience: ticket.creatorId || 'Owner',
+            readBy: [],
+          });
+        } else {
+          s.notifications.unshift({
+            id: uid('N'),
+            title: `Ticket #${ticket.id} Status Updated`,
+            message: `${a.name} updated ticket "${ticket.title}" to ${p.status}.`,
+            date: now,
+            audience: 'SUPER_ADMIN',
+            readBy: [],
+          });
+        }
+      }
+
+      // Priority update
+      if (p.priority && p.priority !== ticket.priority) {
+        assert(
+          ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(p.priority),
+          'Invalid priority level.',
+        );
+        const oldPriority = ticket.priority;
+        ticket.priority = p.priority;
+        ticket.history.push({
+          id: uid('TH'),
+          timestamp: now,
+          actorName: a.name,
+          actorRole: a.role,
+          action: 'PRIORITY_CHANGED',
+          details: `Priority updated from ${oldPriority} to ${p.priority}`,
+        });
+      }
+
+      // Resolution notes
+      if (p.resolutionNotes !== undefined) {
+        ticket.resolutionNotes = String(p.resolutionNotes).trim();
+      }
+
+      // Reply message
+      if (p.reply && String(p.reply).trim()) {
+        const replyAttachments: TicketAttachment[] = Array.isArray(p.replyAttachments)
+          ? p.replyAttachments.map((att: any) => ({
+              id: att.id || uid('ATT'),
+              name: clean(att.name || 'attachment', 'Attachment name'),
+              type: att.type || 'image/png',
+              size: Number(att.size) || 0,
+              dataUrl: att.dataUrl || '',
+            }))
+          : [];
+
+        const replyObj: TicketReply = {
+          id: uid('TR'),
+          senderId: a.id,
+          senderName: a.name,
+          senderRole: a.role,
+          message: clean(p.reply, 'Reply message'),
+          attachments: replyAttachments,
+          timestamp: now,
+        };
+        ticket.replies.push(replyObj);
+        ticket.history.push({
+          id: uid('TH'),
+          timestamp: now,
+          actorName: a.name,
+          actorRole: a.role,
+          action: 'REPLY_ADDED',
+          details: `${a.name} (${a.role}) posted a reply`,
+        });
+
+        if (a.module === 'SuperAdmin') {
+          s.notifications.unshift({
+            id: uid('N'),
+            title: `New Reply on Ticket #${ticket.id}`,
+            message: `${a.name} (Super Admin) replied to ticket "${ticket.title}".`,
+            date: now,
+            audience: ticket.creatorId || 'Owner',
+            readBy: [],
+          });
+        } else {
+          s.notifications.unshift({
+            id: uid('N'),
+            title: `Owner Reply on Ticket #${ticket.id}`,
+            message: `${a.name} replied on ticket "${ticket.title}".`,
+            date: now,
+            audience: 'SUPER_ADMIN',
+            readBy: [],
+          });
+        }
+      }
+
+      ticket.updatedAt = now;
+
       s.platformAudit = [
         {
           id: `PA-${Date.now()}`,
@@ -2269,24 +2434,97 @@ export function applyCommand(previous: State, actorId: string, command: Command)
       ];
       break;
     }
-    case 'superadmin.ticket.create': {
-      const code = p.tenantCode || 'PALM';
+    case 'superadmin.ticket.create':
+    case 'ticket.create': {
+      assert(
+        a.module === 'SuperAdmin' || a.module === 'Owner' || a.module === 'Management',
+        'Unauthorized to create support tickets.',
+      );
+
+      const code = a.module === 'Owner' ? (a.tenantId || 'PALM') : (p.tenantCode || 'PALM');
       const t = s.tenants?.find((x) => x.code === code);
+      const resortName =
+        t?.name || (code === 'PALM' ? (s.policies.resortName || 'The Palm Luxury Resort') : `${code} Resort`);
+      const ownerName = a.module === 'Owner' ? a.name : (t?.ownerName || 'Resort Owner');
+      const ownerEmail = a.module === 'Owner' ? a.email : (t?.ownerEmail || 'owner@rrms.demo');
+      const creatorId = a.id;
+
+      // Automatically assign to Super Admin
+      const superAdmin = s.accounts.find(
+        (acc) => acc.role === 'SUPER_ADMIN' || acc.module === 'SuperAdmin',
+      );
+      const assigneeId = superAdmin?.id || 'superadmin';
+      const assigneeName = superAdmin?.name || 'Platform Administrator';
+      const assigneeEmail = superAdmin?.email || 'admin@rrms.demo';
+
+      // Unique Ticket ID
+      let ticketId = `TK-${Date.now().toString().slice(-4)}`;
+      while (s.platformTickets?.some((tk) => tk.id === ticketId)) {
+        ticketId = `TK-${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+
+      // Validate priority
+      const priority = (['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(p.priority)
+        ? p.priority
+        : 'MEDIUM') as 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+      // Validate attachments
+      const attachments: TicketAttachment[] = Array.isArray(p.attachments)
+        ? p.attachments.map((att: any) => ({
+            id: att.id || uid('ATT'),
+            name: clean(att.name || 'attachment', 'File name'),
+            type: att.type || 'image/png',
+            size: Number(att.size) || 0,
+            dataUrl: att.dataUrl || '',
+          }))
+        : [];
+
+      const initialHistory: TicketHistoryEntry[] = [
+        {
+          id: uid('TH'),
+          timestamp: now,
+          actorName: a.name,
+          actorRole: a.role,
+          action: 'TICKET_CREATED',
+          details: `Ticket opened by ${a.name} (${a.role}) with priority ${priority}`,
+        },
+      ];
+
       const newTicket: PlatformTicket = {
-        id: `TK-${Date.now().toString().slice(-4)}`,
+        id: ticketId,
         tenantCode: code,
-        resortName: t?.name || 'Resort',
-        ownerName: t?.ownerName || 'Resort Owner',
-        ownerEmail: t?.ownerEmail || 'owner@rrms.demo',
+        resortName,
+        ownerName,
+        ownerEmail,
+        creatorId,
+        assigneeId,
+        assigneeName,
+        assigneeEmail,
         title: clean(p.title, 'Ticket title'),
-        category: p.category || 'SYSTEM',
-        priority: p.priority || 'HIGH',
+        category: clean(p.category || 'Technical Issue', 'Category'),
+        priority,
         status: 'OPEN',
         description: clean(p.description, 'Issue description'),
+        attachments,
+        replies: [],
+        history: initialHistory,
         resolutionNotes: '',
         createdAt: now,
+        updatedAt: now,
       };
+
       s.platformTickets = [newTicket, ...(s.platformTickets ?? [])];
+
+      // Notify Super Admin
+      s.notifications.unshift({
+        id: uid('N'),
+        title: `New Support Ticket: #${newTicket.id}`,
+        message: `${a.name} [${code}] submitted "${newTicket.title}" (${newTicket.priority}).`,
+        date: now,
+        audience: 'SUPER_ADMIN',
+        readBy: [],
+      });
+
       s.platformAudit = [
         {
           id: `PA-${Date.now()}`,
@@ -2294,7 +2532,7 @@ export function applyCommand(previous: State, actorId: string, command: Command)
           actor: a.name,
           action: 'TICKET_SUBMITTED',
           tenantCode: code,
-          details: `Opened incident ticket #${newTicket.id} [${newTicket.priority}] for ${code}`,
+          details: `Opened incident ticket #${newTicket.id} [${newTicket.priority}] for ${code} by ${a.name}`,
           severity: newTicket.priority === 'CRITICAL' ? 'CRITICAL' : 'INFO',
         },
         ...(s.platformAudit ?? []),

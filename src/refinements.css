@@ -1262,10 +1262,11 @@ th[aria-sort='descending'] .sort-button {
 }
 
 .dialog-header h2 {
+  font-family: var(--font-body);
   font-size: 20px;
   color: var(--foreground);
   font-weight: 600;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.015em;
 }
 
 .dialog-header p {
@@ -1878,7 +1879,8 @@ th[aria-sort='descending'] .sort-button {
   }
 
   .dialog-header h2 {
-    font-size: 22px;
+    font-family: var(--font-body);
+    font-size: 20px;
   }
 
   .dialog-header p {

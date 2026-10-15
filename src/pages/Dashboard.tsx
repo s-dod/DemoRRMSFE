@@ -32,7 +32,15 @@ import {
   UserPlus,
   Gift,
   CreditCard,
+  LifeBuoy,
+  Paperclip,
+  Send,
+  FileText,
+  X,
+  Download,
+  Upload,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Area,
   AreaChart,
@@ -70,10 +78,11 @@ import {
   today,
   roles,
   serviceMenu,
+  type TicketAttachment,
+  type PlatformTicket,
 } from '../lib/domain';
 import { roomStatus, roomStatuses } from '../lib/property';
 import { useStore } from '../lib/store';
-import { toast } from 'sonner';
 
 import { motion, type Variants } from 'framer-motion';
 
@@ -210,7 +219,7 @@ export default function Dashboard() {
 
 function OperationsDashboard() {
   const reduced = useReducedMotion();
-  const { s, actor } = useStore();
+  const { s, actor, act } = useStore();
   const navigate = useNavigate();
   const [period, setPeriod] = useState('7');
   const d = dashboard(s),
@@ -243,6 +252,173 @@ function OperationsDashboard() {
     : 0;
   const go = (path: string) => navigate(`${base}/${path}`);
 
+  // Owner Support Tickets state
+  const [createTicketOpen, setCreateTicketOpen] = useState(false);
+  const [ticketTitle, setTicketTitle] = useState('');
+  const [ticketCategory, setTicketCategory] = useState('Technical Issue');
+  const [ticketDescription, setTicketDescription] = useState('');
+  const [ticketPriority, setTicketPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'>('MEDIUM');
+  const [ticketAttachments, setTicketAttachments] = useState<TicketAttachment[]>([]);
+  const [uploadError, setUploadError] = useState('');
+
+  const [ownerTicketsOpen, setOwnerTicketsOpen] = useState(false);
+  const [selectedOwnerTicket, setSelectedOwnerTicket] = useState<PlatformTicket | null>(null);
+  const [ownerTicketFilter, setOwnerTicketFilter] = useState<'ALL' | 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED'>('ALL');
+  const [ownerReplyMessage, setOwnerReplyMessage] = useState('');
+  const [ownerReplyAttachments, setOwnerReplyAttachments] = useState<TicketAttachment[]>([]);
+  const [ownerPreviewAttachment, setOwnerPreviewAttachment] = useState<TicketAttachment | null>(null);
+
+  // Tickets belonging to this owner
+  const myTickets: PlatformTicket[] = (s.platformTickets ?? []).filter((t) => {
+    if (!owner) return false;
+    return (
+      t.creatorId === actor!.id ||
+      t.ownerEmail === actor!.email ||
+      t.tenantCode === (actor!.tenantId || 'PALM')
+    );
+  });
+  const activeOwnerTickets = myTickets.filter((t) => t.status !== 'CLOSED');
+
+  // Keep selectedOwnerTicket synchronized with latest state
+  const currentSelectedTicket = selectedOwnerTicket
+    ? (s.platformTickets ?? []).find((t) => t.id === selectedOwnerTicket.id) || selectedOwnerTicket
+    : null;
+
+  const filteredOwnerTickets = myTickets.filter((t) => {
+    if (ownerTicketFilter === 'ALL') return true;
+    return t.status === ownerTicketFilter;
+  });
+
+  const handleAttachmentUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    isReply = false
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploadError('');
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf'];
+    const maxSizeBytes = 1_500_000;
+
+    const newAttachments: TicketAttachment[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!allowedTypes.includes(file.type)) {
+        const msg = `"${file.name}" is not supported. Use PNG, JPG, WebP images or PDF documents.`;
+        setUploadError(msg);
+        toast.error(msg);
+        continue;
+      }
+      if (file.size > maxSizeBytes) {
+        const msg = `"${file.name}" exceeds 1.5 MB limit.`;
+        setUploadError(msg);
+        toast.error(msg);
+        continue;
+      }
+
+      try {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        newAttachments.push({
+          id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          dataUrl,
+        });
+      } catch {
+        toast.error(`Could not read file ${file.name}`);
+      }
+    }
+
+    if (newAttachments.length > 0) {
+      if (isReply) {
+        setOwnerReplyAttachments((prev) => [...prev, ...newAttachments]);
+      } else {
+        setTicketAttachments((prev) => [...prev, ...newAttachments]);
+      }
+    }
+
+    e.target.value = '';
+  };
+
+  const handleCreateTicketSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ticketTitle.trim()) {
+      toast.error('Ticket title is required.');
+      return;
+    }
+    if (!ticketDescription.trim()) {
+      toast.error('Ticket description is required.');
+      return;
+    }
+
+    const ok = act(
+      {
+        type: 'ticket.create',
+        payload: {
+          title: ticketTitle.trim(),
+          category: ticketCategory,
+          description: ticketDescription.trim(),
+          priority: ticketPriority,
+          attachments: ticketAttachments,
+        },
+      },
+      'Support ticket submitted successfully to Super Admin',
+    );
+
+    if (ok) {
+      setCreateTicketOpen(false);
+      setTicketTitle('');
+      setTicketCategory('Technical Issue');
+      setTicketDescription('');
+      setTicketPriority('MEDIUM');
+      setTicketAttachments([]);
+      setUploadError('');
+    }
+  };
+
+  const handleOwnerReplySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentSelectedTicket || !ownerReplyMessage.trim()) return;
+
+    const ok = act(
+      {
+        type: 'ticket.update',
+        payload: {
+          id: currentSelectedTicket.id,
+          reply: ownerReplyMessage.trim(),
+          replyAttachments: ownerReplyAttachments,
+        },
+      },
+      'Reply sent to Super Admin',
+    );
+
+    if (ok) {
+      setOwnerReplyMessage('');
+      setOwnerReplyAttachments([]);
+    }
+  };
+
+  const handleOwnerCloseTicket = (ticketId: string) => {
+    act(
+      {
+        type: 'ticket.update',
+        payload: {
+          id: ticketId,
+          status: 'CLOSED',
+        },
+      },
+      'Ticket marked as Closed',
+    );
+  };
+
   return (
     <PageMotion>
       <PageTitle
@@ -267,6 +443,30 @@ function OperationsDashboard() {
               Today
               <ChevronRight size={14} />
             </Button>
+            {owner && (
+              <>
+                <Button
+                  onClick={() => setCreateTicketOpen(true)}
+                  className="bg-[#1F3A2E] hover:bg-[#2B4C3E] text-white flex items-center gap-1.5 shadow-xs font-semibold text-xs"
+                >
+                  <LifeBuoy size={15} className="text-[#C9A227]" />
+                  Create Ticket
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setOwnerTicketsOpen(true)}
+                  className="flex items-center gap-1.5 text-xs relative"
+                >
+                  <MessageSquare size={14} />
+                  My Tickets
+                  {activeOwnerTickets.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.2 bg-[#C9A227] text-white font-bold text-[10px] rounded-full">
+                      {activeOwnerTickets.length}
+                    </span>
+                  )}
+                </Button>
+              </>
+            )}
             {can(s, actor!, 'reservations') && !owner && (
               <Button onClick={() => go('reservations?new=1')}>
                 <Plus size={17} />
@@ -706,6 +906,727 @@ function OperationsDashboard() {
             : 'Staff accounts, roles, and access in one place.'
         }
       />
+      {/* Owner Support Tickets Dashboard Section */}
+      {owner && (
+        <Card className="mt-6 mb-2 border border-[#E9DFCE] bg-white p-5 shadow-xs">
+          <div className="flex items-center justify-between gap-4 flex-wrap pb-3 border-b border-[#F0EBE1]">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-[#1F3A2E]/10 text-[#1F3A2E] rounded-lg">
+                <LifeBuoy size={18} className="text-[#C9A227]" />
+              </div>
+              <div>
+                <h3 className="font-serif font-bold text-sm text-[#1F3A2E]">
+                  Super Admin Support & Escalations
+                </h3>
+                <p className="text-xs text-[#6B7160]">
+                  Direct communication channel with Super Admin platform engineering
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setOwnerTicketsOpen(true)}
+                className="text-xs flex items-center gap-1.5"
+              >
+                <MessageSquare size={13} />
+                View All ({myTickets.length})
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setCreateTicketOpen(true)}
+                className="bg-[#1F3A2E] hover:bg-[#2B4C3E] text-white text-xs flex items-center gap-1.5"
+              >
+                <Plus size={13} />
+                Create Ticket
+              </Button>
+            </div>
+          </div>
+
+          {myTickets.length === 0 ? (
+            <div className="py-6 text-center text-xs text-[#6B7160] space-y-2">
+              <p>No support tickets opened yet. If you encounter any technical issues or need system adjustments, submit a ticket to the Super Admin.</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCreateTicketOpen(true)}
+                className="text-xs inline-flex items-center gap-1.5 mt-2"
+              >
+                <LifeBuoy size={14} className="text-[#C9A227]" />
+                Open First Ticket
+              </Button>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#F0EBE1] mt-2">
+              {myTickets.slice(0, 3).map((ticket) => (
+                <div
+                  key={ticket.id}
+                  onClick={() => {
+                    setSelectedOwnerTicket(ticket);
+                    setOwnerTicketsOpen(true);
+                  }}
+                  className="py-3 flex items-center justify-between gap-3 hover:bg-[#FAF7F2] -mx-2 px-2 rounded-lg cursor-pointer transition-colors"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-mono text-xs font-bold text-[#1F3A2E]">{ticket.id}</span>
+                      <span
+                        className={`text-[9px] font-bold px-2 py-0.2 rounded ${
+                          ticket.priority === 'CRITICAL'
+                            ? 'bg-red-100 text-red-800'
+                            : ticket.priority === 'HIGH'
+                              ? 'bg-amber-100 text-amber-800'
+                              : ticket.priority === 'MEDIUM'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {ticket.priority}
+                      </span>
+                      <span className="text-[11px] text-[#6B7160]">· {ticket.category}</span>
+                    </div>
+                    <h4 className="text-xs font-semibold text-[#1F3A2E] truncate">{ticket.title}</h4>
+                    <p className="text-[11px] text-[#6B7160] truncate">{ticket.description}</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {ticket.replies && ticket.replies.length > 0 && (
+                      <span className="text-[11px] text-[#6B7160] flex items-center gap-1 hidden sm:inline-flex">
+                        <MessageSquare size={12} className="text-[#C9A227]" />
+                        {ticket.replies.length}
+                      </span>
+                    )}
+                    <span
+                      className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                        ticket.status === 'CLOSED'
+                          ? 'bg-slate-100 text-slate-700 border-slate-300'
+                          : ticket.status === 'RESOLVED'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : ticket.status === 'IN_PROGRESS'
+                              ? 'bg-amber-100 text-amber-800 border-amber-300'
+                              : 'bg-blue-100 text-blue-800 border-blue-300'
+                      }`}
+                    >
+                      {ticket.status}
+                    </span>
+                    <ChevronRight size={14} className="text-[#6B7160]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* CREATE SUPPORT TICKET MODAL */}
+      <Modal
+        open={createTicketOpen}
+        onClose={() => setCreateTicketOpen(false)}
+        title="Create Support Ticket"
+        description="Submit a technical request, issue report, or system inquiry directly to the Super Admin."
+        wide
+      >
+        <form onSubmit={handleCreateTicketSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="dialog-body space-y-4">
+            {/* Owner & Super Admin Assignment Banner */}
+            <div className="p-3 bg-gradient-to-r from-[#FAF7F2] to-[#F5EFE6] border border-[#E9DFCE] rounded-xl flex items-center justify-between text-xs flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[#6B7160]">
+                  Requester: <strong className="text-[#1F3A2E]">{actor!.name}</strong> ({actor!.email})
+                </span>
+                <span className="text-[#6B7160]">· Resort: <strong className="text-[#1F3A2E]">{actor!.tenantId || 'PALM'}</strong></span>
+              </div>
+              <div className="text-[11px] font-semibold text-[#1F3A2E] bg-white/80 px-2.5 py-1 rounded-md border border-[#E9DFCE]">
+                Assigned to: Platform Administrator (Super Admin)
+              </div>
+            </div>
+
+            {/* Title */}
+            <div>
+              <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
+                Ticket Title <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={ticketTitle}
+                onChange={(e) => setTicketTitle(e.target.value)}
+                placeholder="e.g. Folio payment gateway timeout on guest checkout"
+                className="w-full px-3 py-2.5 bg-white border border-[#E9DFCE] rounded-xl text-xs placeholder:text-[#6B7160]/50 focus:border-[#C9A227] focus:ring-2 focus:ring-[#C9A227]/20 outline-none"
+              />
+            </div>
+
+            {/* Category and Priority Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
+                  Category <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={ticketCategory}
+                  onChange={(e) => setTicketCategory(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-[#E9DFCE] rounded-xl text-xs font-medium focus:border-[#C9A227] focus:ring-2 focus:ring-[#C9A227]/20 outline-none"
+                >
+                  <option value="Technical Issue">Technical Issue</option>
+                  <option value="Bug/Error">Bug/Error</option>
+                  <option value="Feature Request">Feature Request</option>
+                  <option value="Data Correction">Data Correction</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
+                  Priority Level <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={ticketPriority}
+                  onChange={(e: any) => setTicketPriority(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-[#E9DFCE] rounded-xl text-xs font-medium focus:border-[#C9A227] focus:ring-2 focus:ring-[#C9A227]/20 outline-none"
+                >
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium (Default)</option>
+                  <option value="HIGH">High</option>
+                  <option value="CRITICAL">Critical</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
+                Issue Description <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                required
+                rows={4}
+                value={ticketDescription}
+                onChange={(e) => setTicketDescription(e.target.value)}
+                placeholder="Provide comprehensive details about the issue, replication steps, affected room/guest folios, or requested system behavior..."
+                className="w-full px-3 py-2.5 bg-white border border-[#E9DFCE] rounded-xl text-xs placeholder:text-[#6B7160]/50 focus:border-[#C9A227] focus:ring-2 focus:ring-[#C9A227]/20 outline-none"
+              />
+            </div>
+
+            {/* Optional Screenshots / Document Uploads */}
+            <div>
+              <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Paperclip size={14} className="text-[#C9A227]" />
+                  Screenshots & Attachments (Optional)
+                </span>
+                <span className="text-[11px] font-normal text-[#6B7160]">
+                  PNG, JPG, WebP, PDF · Max 1.5 MB each
+                </span>
+              </label>
+
+              <div className="p-3 bg-[#FAF7F2] border border-dashed border-[#E9DFCE] rounded-xl space-y-3">
+                <label className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-[#E9DFCE] hover:border-[#C9A227] rounded-lg text-xs font-semibold text-[#1F3A2E] cursor-pointer transition-colors shadow-2xs">
+                  <Upload size={15} className="text-[#C9A227]" />
+                  <span>Choose screenshots or documents</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/png,image/jpeg,image/webp,application/pdf"
+                    onChange={(e) => handleAttachmentUpload(e, false)}
+                    className="hidden"
+                  />
+                </label>
+
+                {uploadError && (
+                  <p className="text-xs text-red-600 bg-red-50 p-2 rounded-lg border border-red-200">
+                    {uploadError}
+                  </p>
+                )}
+
+                {/* Previews */}
+                {ticketAttachments.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {ticketAttachments.map((att) => (
+                      <div
+                        key={att.id}
+                        className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-[#E9DFCE] text-xs shadow-2xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {att.type.startsWith('image/') ? (
+                            <img
+                              src={att.dataUrl}
+                              alt={att.name}
+                              className="w-8 h-8 rounded object-cover border border-[#E9DFCE] shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200 shrink-0">
+                              <FileText size={16} />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <span className="block truncate font-medium text-[11px] text-[#1F3A2E]">
+                              {att.name}
+                            </span>
+                            <span className="block text-[10px] text-[#6B7160]">
+                              {(att.size / 1024).toFixed(0)} KB
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTicketAttachments((prev) => prev.filter((a) => a.id !== att.id))
+                          }
+                          className="p-1 hover:bg-red-50 text-red-600 rounded transition-colors"
+                          title="Remove attachment"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="dialog-footer flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setCreateTicketOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="bg-[#1F3A2E] hover:bg-[#2B4C3E] text-white">
+              Submit Support Ticket
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* OWNER TICKETS TRACKER MODAL */}
+      <Modal
+        open={ownerTicketsOpen}
+        onClose={() => {
+          setOwnerTicketsOpen(false);
+          setSelectedOwnerTicket(null);
+        }}
+        title={
+          currentSelectedTicket
+            ? `Ticket #${currentSelectedTicket.id}: ${currentSelectedTicket.title}`
+            : 'Your Support Tickets'
+        }
+        description={
+          currentSelectedTicket
+            ? `Category: ${currentSelectedTicket.category} · Priority: ${currentSelectedTicket.priority} · Status: ${currentSelectedTicket.status}`
+            : 'Track active inquiries, Super Admin replies, and engineering resolution updates.'
+        }
+        wide
+      >
+        <div className="dialog-body space-y-4">
+          {currentSelectedTicket ? (
+            /* TICKET DETAIL VIEW */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-2 border-b border-[#F0EBE1] pb-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedOwnerTicket(null)}
+                  className="text-xs font-semibold text-[#1F3A2E] hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <ChevronLeft size={14} /> Back to all tickets
+                </button>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                      currentSelectedTicket.status === 'CLOSED'
+                        ? 'bg-slate-100 text-slate-700 border-slate-300'
+                        : currentSelectedTicket.status === 'RESOLVED'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : currentSelectedTicket.status === 'IN_PROGRESS'
+                            ? 'bg-amber-100 text-amber-800 border-amber-300'
+                            : 'bg-blue-100 text-blue-800 border-blue-300'
+                    }`}
+                  >
+                    {currentSelectedTicket.status}
+                  </span>
+                  {currentSelectedTicket.status !== 'CLOSED' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleOwnerCloseTicket(currentSelectedTicket.id)}
+                      className="text-xs text-slate-600 hover:text-slate-900 border-slate-300"
+                    >
+                      Close Ticket
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#E9DFCE] text-xs space-y-1">
+                <div className="flex items-center justify-between text-[#6B7160]">
+                  <span className="font-semibold text-[#1F3A2E]">Initial Problem Statement:</span>
+                  <span>{new Date(currentSelectedTicket.createdAt).toLocaleString()}</span>
+                </div>
+                <p className="text-[#22261F] leading-relaxed whitespace-pre-line">
+                  {currentSelectedTicket.description}
+                </p>
+              </div>
+
+              {/* Attachments */}
+              {currentSelectedTicket.attachments && currentSelectedTicket.attachments.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-xs font-semibold text-[#1F3A2E] flex items-center gap-1.5">
+                    <Paperclip size={13} className="text-[#C9A227]" />
+                    Original Attachments ({currentSelectedTicket.attachments.length}):
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {currentSelectedTicket.attachments.map((att) => (
+                      <button
+                        key={att.id}
+                        type="button"
+                        onClick={() => setOwnerPreviewAttachment(att)}
+                        className="flex items-center gap-2 p-2 bg-white hover:bg-[#FAF7F2] border border-[#E9DFCE] rounded-lg text-left text-xs transition-colors cursor-pointer group"
+                      >
+                        {att.type.startsWith('image/') ? (
+                          <img
+                            src={att.dataUrl}
+                            alt={att.name}
+                            className="w-8 h-8 rounded object-cover border border-[#E9DFCE] shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200 shrink-0">
+                            <FileText size={16} />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <span className="block truncate font-medium text-[11px] text-[#1F3A2E] group-hover:underline">
+                            {att.name}
+                          </span>
+                          <span className="block text-[10px] text-[#6B7160]">
+                            {(att.size / 1024).toFixed(0)} KB
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Resolution Notes from Super Admin */}
+              {Boolean(currentSelectedTicket.resolutionNotes?.trim()) && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs space-y-1">
+                  <strong className="text-emerald-900 block font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="text-emerald-700" />
+                    Super Admin Engineering Resolution:
+                  </strong>
+                  <p className="text-emerald-800 leading-relaxed font-sans">
+                    {currentSelectedTicket.resolutionNotes}
+                  </p>
+                </div>
+              )}
+
+              {/* Conversation & Replies Thread */}
+              <div className="space-y-2.5 border-t border-[#F0EBE1] pt-3">
+                <span className="text-xs font-semibold text-[#1F3A2E] flex items-center gap-1.5">
+                  <MessageSquare size={13} className="text-[#C9A227]" />
+                  Replies & Discussion ({currentSelectedTicket.replies?.length || 0}):
+                </span>
+
+                {(!currentSelectedTicket.replies || currentSelectedTicket.replies.length === 0) ? (
+                  <p className="text-xs text-[#6B7160] italic py-2">
+                    No replies yet. The Super Admin has received your ticket and will update you shortly.
+                  </p>
+                ) : (
+                  <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                    {currentSelectedTicket.replies.map((reply) => (
+                      <div
+                        key={reply.id}
+                        className={`p-3 rounded-lg text-xs space-y-1 ${
+                          reply.senderRole === 'SUPER_ADMIN'
+                            ? 'bg-emerald-50/70 border border-emerald-200/80 mr-4'
+                            : 'bg-[#FAF7F2] border border-[#E9DFCE] ml-4'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[11px]">
+                          <strong className="text-[#1F3A2E] flex items-center gap-1">
+                            {reply.senderName}
+                            <span
+                              className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                                reply.senderRole === 'SUPER_ADMIN'
+                                  ? 'bg-emerald-200 text-emerald-900'
+                                  : 'bg-[#1F3A2E]/10 text-[#1F3A2E]'
+                              }`}
+                            >
+                              {reply.senderRole === 'SUPER_ADMIN' ? 'Super Admin' : 'You (Owner)'}
+                            </span>
+                          </strong>
+                          <span className="text-[#6B7160] text-[10px]">
+                            {new Date(reply.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-[#22261F] leading-relaxed whitespace-pre-line">{reply.message}</p>
+                        {reply.attachments && reply.attachments.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {reply.attachments.map((att) => (
+                              <button
+                                key={att.id}
+                                type="button"
+                                onClick={() => setOwnerPreviewAttachment(att)}
+                                className="text-[10px] text-emerald-800 underline flex items-center gap-1 bg-white/80 px-2 py-0.5 rounded border border-emerald-200"
+                              >
+                                <Paperclip size={10} /> {att.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Reply Composer for Owner */}
+                {currentSelectedTicket.status !== 'CLOSED' ? (
+                  <form onSubmit={handleOwnerReplySubmit} className="space-y-2 pt-2">
+                    <label className="block text-xs font-semibold text-[#1F3A2E]">
+                      Post a reply to Super Admin
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={ownerReplyMessage}
+                      onChange={(e) => setOwnerReplyMessage(e.target.value)}
+                      placeholder="Type a message or provide additional details..."
+                      className="w-full px-3 py-2 bg-white border border-[#E9DFCE] rounded-xl text-xs placeholder:text-[#6B7160]/50 focus:border-[#C9A227] focus:ring-2 focus:ring-[#C9A227]/20 outline-none"
+                    />
+
+                    {/* Previews for reply attachments */}
+                    {ownerReplyAttachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {ownerReplyAttachments.map((att) => (
+                          <div
+                            key={att.id}
+                            className="flex items-center gap-1.5 px-2 py-1 bg-white border border-[#E9DFCE] rounded text-[11px]"
+                          >
+                            <span className="truncate max-w-[120px]">{att.name}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOwnerReplyAttachments((prev) => prev.filter((a) => a.id !== att.id))
+                              }
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="inline-flex items-center gap-1.5 text-xs text-[#6B7160] hover:text-[#1F3A2E] cursor-pointer">
+                        <Paperclip size={14} className="text-[#C9A227]" />
+                        <span>Attach file</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/png,image/jpeg,image/webp,application/pdf"
+                          onChange={(e) => handleAttachmentUpload(e, true)}
+                          className="hidden"
+                        />
+                      </label>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={!ownerReplyMessage.trim()}
+                        className="bg-[#1F3A2E] hover:bg-[#2B4C3E] text-white text-xs flex items-center gap-1"
+                      >
+                        <Send size={12} /> Send Reply
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <p className="text-xs text-[#6B7160] italic bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                    This ticket is closed. If you require further assistance on this issue, you can create a new ticket.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* TICKET LIST VIEW */
+            <div className="space-y-3">
+              {/* Filter tabs */}
+              <div className="flex items-center gap-1.5 border-b border-[#F0EBE1] pb-2 overflow-x-auto">
+                {(['ALL', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setOwnerTicketFilter(st)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      ownerTicketFilter === st
+                        ? 'bg-[#1F3A2E] text-white'
+                        : 'bg-[#FAF7F2] text-[#6B7160] hover:bg-[#F5EFE6]'
+                    }`}
+                  >
+                    {st === 'ALL'
+                      ? `All (${myTickets.length})`
+                      : st === 'OPEN'
+                        ? `Open (${myTickets.filter((t) => t.status === 'OPEN').length})`
+                        : st === 'IN_PROGRESS'
+                          ? `In Progress (${myTickets.filter((t) => t.status === 'IN_PROGRESS').length})`
+                          : st === 'RESOLVED'
+                            ? `Resolved (${myTickets.filter((t) => t.status === 'RESOLVED').length})`
+                            : `Closed (${myTickets.filter((t) => t.status === 'CLOSED').length})`}
+                  </button>
+                ))}
+              </div>
+
+              {filteredOwnerTickets.length === 0 ? (
+                <div className="py-8 text-center text-xs text-[#6B7160] space-y-2">
+                  <p>No tickets match the selected status.</p>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setOwnerTicketsOpen(false);
+                      setCreateTicketOpen(true);
+                    }}
+                    className="bg-[#1F3A2E] hover:bg-[#2B4C3E] text-white text-xs inline-flex items-center gap-1.5"
+                  >
+                    <Plus size={13} /> Create New Ticket
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                  {filteredOwnerTickets.map((ticket) => (
+                    <div
+                      key={ticket.id}
+                      onClick={() => setSelectedOwnerTicket(ticket)}
+                      className="p-3.5 bg-[#FAF7F2] hover:bg-white border border-[#E9DFCE] hover:border-[#C9A227] rounded-xl transition-all cursor-pointer space-y-2 shadow-2xs"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="font-mono text-xs font-bold text-[#1F3A2E]">{ticket.id}</span>
+                            <span
+                              className={`text-[9px] font-bold px-2 py-0.2 rounded ${
+                                ticket.priority === 'CRITICAL'
+                                  ? 'bg-red-100 text-red-800'
+                                  : ticket.priority === 'HIGH'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : ticket.priority === 'MEDIUM'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {ticket.priority}
+                            </span>
+                            <span className="text-[11px] text-[#6B7160]">· {ticket.category}</span>
+                            <span className="text-[11px] text-[#6B7160]">
+                              · {new Date(ticket.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-semibold text-[#1F3A2E]">{ticket.title}</h4>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                            ticket.status === 'CLOSED'
+                              ? 'bg-slate-100 text-slate-700 border-slate-300'
+                              : ticket.status === 'RESOLVED'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : ticket.status === 'IN_PROGRESS'
+                                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                  : 'bg-blue-100 text-blue-800 border-blue-300'
+                          }`}
+                        >
+                          {ticket.status}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-[#6B7160] line-clamp-2 leading-relaxed">
+                        {ticket.description}
+                      </p>
+
+                      <div className="flex items-center justify-between text-[11px] text-[#6B7160] pt-1 border-t border-[#F0EBE1]">
+                        <span className="flex items-center gap-1">
+                          <Paperclip size={12} className="text-[#C9A227]" />
+                          {ticket.attachments?.length || 0} attachment(s)
+                        </span>
+                        <span className="flex items-center gap-1 text-[#1F3A2E] font-medium">
+                          <MessageSquare size={12} className="text-[#C9A227]" />
+                          {ticket.replies?.length || 0} replies · Click to open →
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="dialog-footer flex justify-between items-center">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setOwnerTicketsOpen(false);
+              setCreateTicketOpen(true);
+            }}
+            className="text-xs flex items-center gap-1"
+          >
+            <Plus size={13} /> New Ticket
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              setOwnerTicketsOpen(false);
+              setSelectedOwnerTicket(null);
+            }}
+          >
+            Close
+          </Button>
+        </div>
+      </Modal>
+
+      {/* OWNER ATTACHMENT PREVIEW MODAL */}
+      {ownerPreviewAttachment && (
+        <Modal
+          open={!!ownerPreviewAttachment}
+          onClose={() => setOwnerPreviewAttachment(null)}
+          title={ownerPreviewAttachment.name}
+          description={`${ownerPreviewAttachment.type} · ${(ownerPreviewAttachment.size / 1024).toFixed(0)} KB`}
+          wide
+        >
+          <div className="dialog-body flex flex-col items-center justify-center p-4">
+            {ownerPreviewAttachment.type.startsWith('image/') ? (
+              <img
+                src={ownerPreviewAttachment.dataUrl}
+                alt={ownerPreviewAttachment.name}
+                className="max-h-[500px] w-auto rounded-lg shadow-md object-contain border border-[#E9DFCE]"
+              />
+            ) : (
+              <div className="text-center p-8 space-y-3">
+                <FileText size={48} className="mx-auto text-amber-600" />
+                <p className="text-sm font-semibold text-[#1F3A2E]">{ownerPreviewAttachment.name}</p>
+                <p className="text-xs text-[#6B7160]">PDF Document</p>
+                <a
+                  href={ownerPreviewAttachment.dataUrl}
+                  download={ownerPreviewAttachment.name}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1F3A2E] text-white rounded-lg text-xs font-semibold hover:bg-[#2B4C3E]"
+                >
+                  <Download size={14} /> Download Document
+                </a>
+              </div>
+            )}
+          </div>
+          <div className="dialog-footer flex justify-between items-center">
+            <a
+              href={ownerPreviewAttachment.dataUrl}
+              download={ownerPreviewAttachment.name}
+              className="inline-flex items-center gap-1.5 text-xs text-[#1F3A2E] hover:underline"
+            >
+              <Download size={13} /> Download File
+            </a>
+            <Button type="button" onClick={() => setOwnerPreviewAttachment(null)}>
+              Close Preview
+            </Button>
+          </div>
+        </Modal>
+      )}
     </PageMotion>
   );
 }

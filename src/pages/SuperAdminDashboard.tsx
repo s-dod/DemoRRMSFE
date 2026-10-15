@@ -24,6 +24,22 @@ import {
   Sliders,
   ShieldCheck,
   RotateCcw,
+  MapPin,
+  Mail,
+  User,
+  BedDouble,
+  Sparkles,
+  Eye,
+  EyeOff,
+  Lock,
+  Paperclip,
+  MessageSquare,
+  Send,
+  FileText,
+  ExternalLink,
+  History,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore } from '../lib/store';
@@ -32,6 +48,7 @@ import {
   dateOffset,
   type Tenant,
   type PlatformTicket,
+  type TicketAttachment,
   type PlatformConfig,
   type PlatformAuditLog,
   type Account,
@@ -79,6 +96,7 @@ export default function SuperAdminDashboard() {
 
   // Provisioning Modal State
   const [createTenantModal, setCreateTenantModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [tenantName, setTenantName] = useState('');
   const [tenantCode, setTenantCode] = useState('');
   const [ownerName, setOwnerName] = useState('');
@@ -115,14 +133,18 @@ export default function SuperAdminDashboard() {
 
   // Support Ticket Resolution Modal
   const [selectedTicket, setSelectedTicket] = useState<PlatformTicket | null>(null);
-  const [ticketStatus, setTicketStatus] = useState<'OPEN' | 'IN_PROGRESS' | 'RESOLVED'>('IN_PROGRESS');
+  const [ticketStatus, setTicketStatus] = useState<'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED'>('IN_PROGRESS');
+  const [ticketPriority, setTicketPriority] = useState<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'>('HIGH');
   const [ticketResolution, setTicketResolution] = useState('');
+  const [adminReply, setAdminReply] = useState('');
+  const [adminReplyAttachments, setAdminReplyAttachments] = useState<TicketAttachment[]>([]);
+  const [previewAttachment, setPreviewAttachment] = useState<TicketAttachment | null>(null);
 
   // Create Ticket Modal
   const [createTicketModal, setCreateTicketModal] = useState(false);
   const [newTicketTenant, setNewTicketTenant] = useState('PALM');
   const [newTicketTitle, setNewTicketTitle] = useState('');
-  const [newTicketCategory, setNewTicketCategory] = useState('SYSTEM');
+  const [newTicketCategory, setNewTicketCategory] = useState('Technical Issue');
   const [newTicketPriority, setNewTicketPriority] = useState<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'>('HIGH');
   const [newTicketDescription, setNewTicketDescription] = useState('');
 
@@ -138,8 +160,8 @@ export default function SuperAdminDashboard() {
 
   // Calculate stats
   const ownerAccounts = s.accounts.filter((a) => a.module === 'Owner');
-  const openTickets = tickets.filter((t) => t.status !== 'RESOLVED');
-  const criticalTickets = tickets.filter((t) => t.priority === 'CRITICAL' && t.status !== 'RESOLVED');
+  const openTickets = tickets.filter((t) => t.status !== 'RESOLVED' && t.status !== 'CLOSED');
+  const criticalTickets = tickets.filter((t) => t.priority === 'CRITICAL' && t.status !== 'RESOLVED' && t.status !== 'CLOSED');
 
   // Handle Provisioning Tenant & Owner Together
   const handleCreateTenantAndOwner = (e: React.FormEvent) => {
@@ -244,7 +266,10 @@ export default function SuperAdminDashboard() {
         payload: {
           id: selectedTicket.id,
           status: ticketStatus,
+          priority: ticketPriority,
           resolutionNotes: ticketResolution.trim(),
+          reply: adminReply.trim() || undefined,
+          replyAttachments: adminReplyAttachments.length ? adminReplyAttachments : undefined,
         },
       },
       `Ticket #${selectedTicket.id} updated to ${ticketStatus}`,
@@ -253,6 +278,8 @@ export default function SuperAdminDashboard() {
     if (ok) {
       setSelectedTicket(null);
       setTicketResolution('');
+      setAdminReply('');
+      setAdminReplyAttachments([]);
     }
   };
 
@@ -889,6 +916,7 @@ export default function SuperAdminDashboard() {
                       <option value="OPEN">Open Only</option>
                       <option value="IN_PROGRESS">In Progress Only</option>
                       <option value="RESOLVED">Resolved Only</option>
+                      <option value="CLOSED">Closed Only</option>
                     </select>
 
                     <select
@@ -922,14 +950,16 @@ export default function SuperAdminDashboard() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span
                             className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                               ticket.priority === 'CRITICAL'
                                 ? 'bg-red-100 text-red-800'
                                 : ticket.priority === 'HIGH'
                                   ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-blue-100 text-blue-800'
+                                  : ticket.priority === 'MEDIUM'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-emerald-100 text-emerald-800'
                             }`}
                           >
                             {ticket.priority}
@@ -942,19 +972,89 @@ export default function SuperAdminDashboard() {
                         <h3 className="font-serif font-bold text-sm text-[#1F3A2E]">
                           {ticket.title}
                         </h3>
-                        <div className="text-[11px] text-[#6B7160] mt-0.5">
-                          Reported by: <strong>{ticket.ownerName}</strong> ({ticket.ownerEmail}) ·{' '}
-                          {new Date(ticket.createdAt).toLocaleString()}
+                        <div className="text-[11px] text-[#6B7160] mt-0.5 flex items-center gap-2 flex-wrap">
+                          <span>
+                            Reported by: <strong>{ticket.ownerName}</strong> ({ticket.ownerEmail})
+                          </span>
+                          <span>·</span>
+                          <span>
+                            Assigned to: <strong className="text-[#1F3A2E]">{ticket.assigneeName || 'Platform Administrator'}</strong>
+                          </span>
+                          <span>·</span>
+                          <span>{new Date(ticket.createdAt).toLocaleString()}</span>
                         </div>
                       </div>
-                      <Badge>{ticket.status}</Badge>
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                          ticket.status === 'CLOSED'
+                            ? 'bg-slate-100 text-slate-700 border-slate-300'
+                            : ticket.status === 'RESOLVED'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : ticket.status === 'IN_PROGRESS'
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : 'bg-blue-100 text-blue-800 border-blue-300'
+                        }`}
+                      >
+                        {ticket.status}
+                      </span>
                     </div>
 
                     <p className="text-xs text-[#22261F] leading-relaxed bg-white/80 p-3 rounded-lg border border-[#F0EBE1]">
                       {ticket.description}
                     </p>
 
-                    {ticket.resolutionNotes && (
+                    {/* Ticket Attachments */}
+                    {ticket.attachments && ticket.attachments.length > 0 && (
+                      <div className="p-3 bg-white rounded-lg border border-[#F0EBE1] space-y-2">
+                        <div className="text-[11px] font-semibold text-[#1F3A2E] flex items-center gap-1.5">
+                          <Paperclip size={13} className="text-[#C9A227]" />
+                          Attachments ({ticket.attachments.length}):
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {ticket.attachments.map((att) => (
+                            <button
+                              key={att.id}
+                              type="button"
+                              onClick={() => setPreviewAttachment(att)}
+                              className="flex items-center gap-2 p-1.5 bg-[#FAF7F2] hover:bg-[#F5EFE6] border border-[#E9DFCE] rounded-lg text-left text-xs transition-colors group cursor-pointer"
+                            >
+                              {att.type.startsWith('image/') ? (
+                                <img
+                                  src={att.dataUrl}
+                                  alt={att.name}
+                                  className="w-8 h-8 rounded object-cover border border-[#E9DFCE]"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200">
+                                  <FileText size={16} />
+                                </div>
+                              )}
+                              <div className="max-w-[140px] truncate">
+                                <span className="block truncate font-medium text-[11px] text-[#1F3A2E] group-hover:underline">
+                                  {att.name}
+                                </span>
+                                <span className="block text-[10px] text-[#6B7160]">
+                                  {(att.size / 1024).toFixed(0)} KB
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Replies count indicator */}
+                    {ticket.replies && ticket.replies.length > 0 && (
+                      <div className="flex items-center gap-1.5 text-xs text-[#1F3A2E] bg-amber-50/70 border border-amber-200/60 px-3 py-1.5 rounded-lg">
+                        <MessageSquare size={13} className="text-[#C9A227]" />
+                        <span className="font-semibold">{ticket.replies.length} {ticket.replies.length === 1 ? 'reply' : 'replies'} exchanged</span>
+                        <span className="text-[#6B7160] text-[11px]">
+                          (Latest from {ticket.replies[ticket.replies.length - 1].senderName})
+                        </span>
+                      </div>
+                    )}
+
+                    {Boolean(ticket.resolutionNotes?.trim()) && (
                       <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs space-y-1">
                         <strong className="text-emerald-900 block font-semibold flex items-center gap-1.5">
                           <CheckCircle2 size={14} className="text-emerald-700" />
@@ -973,11 +1073,14 @@ export default function SuperAdminDashboard() {
                         onClick={() => {
                           setSelectedTicket(ticket);
                           setTicketStatus(ticket.status);
+                          setTicketPriority(ticket.priority);
                           setTicketResolution(ticket.resolutionNotes || '');
+                          setAdminReply('');
+                          setAdminReplyAttachments([]);
                         }}
-                        className="text-xs"
+                        className="text-xs flex items-center gap-1.5"
                       >
-                        Update Status & Resolution →
+                        <MessageSquare size={13} /> Manage Ticket & Replies →
                       </Button>
                     </div>
                   </div>
@@ -1376,123 +1479,233 @@ export default function SuperAdminDashboard() {
           open={createTenantModal}
           onClose={() => setCreateTenantModal(false)}
           title="Provision New Resort & Owner"
-          description="Super Admin creates the Resort Tenant and its primary Owner together. Owner receives generated credentials."
+          description="Deploy a dedicated tenant shard and provision the resort's primary administrative owner credentials in an atomic transaction."
+          wide
         >
-          <form onSubmit={handleCreateTenantAndOwner} className="space-y-4 pt-2">
-            <div className="p-3 bg-[#FAF7F2] border border-[#E9DFCE] rounded-lg text-xs text-[#6B7160]">
-              <strong className="text-[#1F3A2E] block mb-0.5">Atomic Provisioning Policy:</strong>
-              Super Admin generates the Resort Tenant key and its initial Owner account in a single operation. Staff, housekeeping, and guest accounts are provisioned downstream by the resort team.
+          <form onSubmit={handleCreateTenantAndOwner} className="flex flex-col flex-1 min-h-0">
+            <div className="dialog-body space-y-5">
+              {/* Section 1: Resort Property Information */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#1F3A2E] tracking-wider uppercase border-b border-[#F0EBE1] pb-1.5">
+                  <Building2 size={15} className="text-[#C9A227]" />
+                  Resort Identity & Property Details
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
+                      Resort Property Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-[#E9DFCE] focus-within:border-[#C9A227] focus-within:ring-2 focus-within:ring-[#C9A227]/20 rounded-xl transition-all">
+                      <Building2 size={16} className="text-[#6B7160] shrink-0" />
+                      <input
+                        type="text"
+                        required
+                        value={tenantName}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setTenantName(val);
+                          // Auto suggest tenant code if not manually set
+                          if (!tenantCode || tenantCode === tenantName.split(' ')[0]?.toUpperCase()) {
+                            const suggested = val.split(' ')[0]?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10);
+                            if (suggested) setTenantCode(suggested);
+                          }
+                        }}
+                        placeholder="e.g. The Sapphire Beachfront"
+                        style={{ border: 'none', outline: 'none', padding: 0, boxShadow: 'none' }}
+                        className="w-full bg-transparent text-xs placeholder:text-[#6B7160]/50"
+                      />
+                    </div>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">Full legal or branded name of the resort property.</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5 flex items-center justify-between">
+                      <span>Resort / Tenant Code <span className="text-red-500">*</span></span>
+                      <span className="font-mono text-[10px] text-[#6B7160] font-normal uppercase">SHARD IDENTIFIER</span>
+                    </label>
+                    <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-[#E9DFCE] focus-within:border-[#C9A227] focus-within:ring-2 focus-within:ring-[#C9A227]/20 rounded-xl transition-all">
+                      <KeyRound size={16} className="text-[#6B7160] shrink-0" />
+                      <input
+                        type="text"
+                        required
+                        value={tenantCode}
+                        onChange={(e) => setTenantCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''))}
+                        placeholder="e.g. SAPPHIRE"
+                        style={{ border: 'none', outline: 'none', padding: 0, boxShadow: 'none' }}
+                        className="w-full bg-transparent text-xs font-mono uppercase tracking-wider font-bold placeholder:text-[#6B7160]/50"
+                      />
+                    </div>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">Unique alphanumeric shard key used for URL routing and tenant data isolation.</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
+                      Property Location <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-[#E9DFCE] focus-within:border-[#C9A227] focus-within:ring-2 focus-within:ring-[#C9A227]/20 rounded-xl transition-all">
+                      <MapPin size={16} className="text-[#6B7160] shrink-0" />
+                      <input
+                        type="text"
+                        required
+                        value={tenantLocation}
+                        onChange={(e) => setTenantLocation(e.target.value)}
+                        placeholder="e.g. Candolim, Goa · India"
+                        style={{ border: 'none', outline: 'none', padding: 0, boxShadow: 'none' }}
+                        className="w-full bg-transparent text-xs placeholder:text-[#6B7160]/50"
+                      />
+                    </div>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">Geographic destination and physical address.</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
+                      Initial Room Capacity
+                    </label>
+                    <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-[#E9DFCE] focus-within:border-[#C9A227] focus-within:ring-2 focus-within:ring-[#C9A227]/20 rounded-xl transition-all">
+                      <BedDouble size={16} className="text-[#6B7160] shrink-0" />
+                      <input
+                        type="number"
+                        min="1"
+                        max="1000"
+                        value={roomsCount}
+                        onChange={(e) => setRoomsCount(Math.max(1, Number(e.target.value)))}
+                        style={{ border: 'none', outline: 'none', padding: 0, boxShadow: 'none' }}
+                        className="w-full bg-transparent text-xs"
+                      />
+                    </div>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">Baseline physical keys provisioned into property management inventory.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Primary Owner Account */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#1F3A2E] tracking-wider uppercase border-b border-[#F0EBE1] pb-1.5">
+                  <Users size={15} className="text-[#1F3A2E]" />
+                  Primary Owner Account Credentials
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
+                      Owner Full Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-[#E9DFCE] focus-within:border-[#C9A227] focus-within:ring-2 focus-within:ring-[#C9A227]/20 rounded-xl transition-all">
+                      <User size={16} className="text-[#6B7160] shrink-0" />
+                      <input
+                        type="text"
+                        required
+                        value={ownerName}
+                        onChange={(e) => setOwnerName(e.target.value)}
+                        placeholder="e.g. Siddharth Singhania"
+                        style={{ border: 'none', outline: 'none', padding: 0, boxShadow: 'none' }}
+                        className="w-full bg-transparent text-xs placeholder:text-[#6B7160]/50"
+                      />
+                    </div>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">Full legal name of the resort proprietor or principal.</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
+                      Owner Email Address (Login ID) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-[#E9DFCE] focus-within:border-[#C9A227] focus-within:ring-2 focus-within:ring-[#C9A227]/20 rounded-xl transition-all">
+                      <Mail size={16} className="text-[#6B7160] shrink-0" />
+                      <input
+                        type="email"
+                        required
+                        value={ownerEmail}
+                        onChange={(e) => setOwnerEmail(e.target.value)}
+                        placeholder="e.g. owner@sapphire.demo"
+                        style={{ border: 'none', outline: 'none', padding: 0, boxShadow: 'none' }}
+                        className="w-full bg-transparent text-xs placeholder:text-[#6B7160]/50"
+                      />
+                    </div>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">Used by the Owner to access their management portal.</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5 flex items-center justify-between">
+                      <span>Temporary Password <span className="text-red-500">*</span></span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const base = tenantCode ? tenantCode.charAt(0) + tenantCode.slice(1).toLowerCase() : 'Resort';
+                          const pass = `${base}@${Math.floor(100 + Math.random() * 900)}!`;
+                          setOwnerPassword(pass);
+                          toast.info(`Generated password: ${pass}`);
+                        }}
+                        className="text-[11px] text-[#C9A227] hover:text-[#B38F1E] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Sparkles size={12} /> Auto-Generate
+                      </button>
+                    </label>
+                    <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-[#E9DFCE] focus-within:border-[#C9A227] focus-within:ring-2 focus-within:ring-[#C9A227]/20 rounded-xl transition-all">
+                      <Lock size={16} className="text-[#6B7160] shrink-0" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        value={ownerPassword}
+                        onChange={(e) => setOwnerPassword(e.target.value)}
+                        placeholder="Resort@123"
+                        style={{ border: 'none', outline: 'none', padding: 0, boxShadow: 'none' }}
+                        className="w-full bg-transparent text-xs font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-[#6B7160] hover:text-[#1F3A2E] p-1 cursor-pointer shrink-0"
+                        title={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">Initial administrative credential for tenant onboarding.</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
+                      SaaS Subscription Tier <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-[#E9DFCE] focus-within:border-[#C9A227] focus-within:ring-2 focus-within:ring-[#C9A227]/20 rounded-xl transition-all">
+                      <ShieldCheck size={16} className="text-[#6B7160] shrink-0" />
+                      <select
+                        value={tenantTier}
+                        onChange={(e) => setTenantTier(e.target.value)}
+                        style={{ border: 'none', outline: 'none', padding: 0, boxShadow: 'none' }}
+                        className="w-full bg-transparent text-xs cursor-pointer"
+                      >
+                        <option value="Enterprise">Enterprise (Dedicated Shard · 99.99% SLA · Full Modules)</option>
+                        <option value="Premium">Premium (Enhanced Analytics · Priority Escalations)</option>
+                        <option value="Standard">Standard (Core PMS & Essential Operations)</option>
+                      </select>
+                    </div>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">Allocates compute quotas and platform SLA boundaries.</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Resort Property Name *</span>
-                <input
-                  type="text"
-                  required
-                  value={tenantName}
-                  onChange={(e) => setTenantName(e.target.value)}
-                  placeholder="e.g. The Sapphire Beachfront"
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                />
-              </label>
-
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Resort / Tenant Code *</span>
-                <input
-                  type="text"
-                  required
-                  value={tenantCode}
-                  onChange={(e) => setTenantCode(e.target.value.toUpperCase())}
-                  placeholder="e.g. SAPPHIRE"
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs font-mono uppercase"
-                />
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Owner Full Name *</span>
-                <input
-                  type="text"
-                  required
-                  value={ownerName}
-                  onChange={(e) => setOwnerName(e.target.value)}
-                  placeholder="e.g. Siddharth Singhania"
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                />
-              </label>
-
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Owner Email Address *</span>
-                <input
-                  type="email"
-                  required
-                  value={ownerEmail}
-                  onChange={(e) => setOwnerEmail(e.target.value)}
-                  placeholder="e.g. owner@sapphire.demo"
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                />
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Temporary Password *</span>
-                <input
-                  type="text"
-                  required
-                  value={ownerPassword}
-                  onChange={(e) => setOwnerPassword(e.target.value)}
-                  placeholder="Resort@123"
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs font-mono"
-                />
-              </label>
-
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">SaaS Tier *</span>
-                <select
-                  value={tenantTier}
-                  onChange={(e) => setTenantTier(e.target.value)}
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                >
-                  <option value="Enterprise">Enterprise</option>
-                  <option value="Premium">Premium</option>
-                  <option value="Standard">Standard</option>
-                </select>
-              </label>
-
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Rooms Capacity</span>
-                <input
-                  type="number"
-                  min="5"
-                  max="500"
-                  value={roomsCount}
-                  onChange={(e) => setRoomsCount(Number(e.target.value))}
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                />
-              </label>
-            </div>
-
-            <label className="field block">
-              <span className="text-xs font-semibold text-[#1F3A2E]">Property Location</span>
-              <input
-                type="text"
-                value={tenantLocation}
-                onChange={(e) => setTenantLocation(e.target.value)}
-                placeholder="e.g. Udaipur, Rajasthan · India"
-                className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-              />
-            </label>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-[#F0EBE1]">
-              <Button type="button" variant="outline" onClick={() => setCreateTenantModal(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" className="bg-[#C9A227] hover:bg-[#B38F1E] text-white">
-                Provision Resort & Owner
-              </Button>
+            {/* Modal Footer */}
+            <div className="dialog-footer flex items-center justify-between">
+              <div className="text-[11px] text-[#6B7160] hidden sm:flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Isolated tenant schema allocation</span>
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
+                <Button type="button" variant="outline" onClick={() => setCreateTenantModal(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="bg-[#C9A227] hover:bg-[#B38F1E] text-white flex items-center gap-1.5 shadow-sm font-semibold">
+                  <Plus size={15} />
+                  Provision Resort & Owner
+                </Button>
+              </div>
             </div>
           </form>
         </Modal>
@@ -1503,61 +1716,71 @@ export default function SuperAdminDashboard() {
             open={!!createdCredentials}
             onClose={() => setCreatedCredentials(null)}
             title="Owner Credentials Provisioned"
-            description="The resort property and primary Owner account have been created."
+            description="The resort property and primary Owner account have been deployed successfully."
+            wide
           >
-            <div className="space-y-4 pt-2">
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
-                <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
-                  <CheckCircle2 size={18} className="text-emerald-600" />
-                  Resort & Owner Successfully Created
+            <div className="flex flex-col flex-1 min-h-0">
+              <div className="dialog-body space-y-4">
+                <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-start gap-3">
+                  <CheckCircle2 size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-emerald-900 font-bold text-sm">
+                      Resort Property & Owner Account Created
+                    </div>
+                    <p className="text-xs text-emerald-800 leading-relaxed mt-0.5">
+                      Provide these credentials to the resort Owner. They can sign in directly to their dedicated management dashboard using the existing sign-in portal.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-emerald-900 leading-relaxed">
-                  Provide these credentials to the resort Owner. They can sign in directly from the existing sign-in portal.
-                </p>
+
+                <div className="p-4 bg-[#FAF7F2] border border-[#E9DFCE] rounded-xl space-y-2.5 font-mono text-xs">
+                  <div className="flex justify-between items-center border-b border-[#F0EBE1] pb-2">
+                    <span className="text-[#6B7160] font-sans font-medium">Resort Name:</span>
+                    <span className="font-bold text-[#1F3A2E] font-sans text-sm">{createdCredentials.resortName}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-[#F0EBE1] pb-2">
+                    <span className="text-[#6B7160] font-sans font-medium">Tenant Shard Code:</span>
+                    <span className="font-bold text-[#1F3A2E] bg-white px-2 py-0.5 rounded border border-[#E9DFCE]">
+                      {createdCredentials.tenantCode}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-[#F0EBE1] pb-2">
+                    <span className="text-[#6B7160] font-sans font-medium">Primary Owner:</span>
+                    <span className="font-bold text-[#1F3A2E] font-sans">{createdCredentials.ownerName}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-[#F0EBE1] pb-2">
+                    <span className="text-[#6B7160] font-sans font-medium">Login Email:</span>
+                    <span className="font-bold text-[#1F3A2E]">{createdCredentials.ownerEmail}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-[#E9DFCE]">
+                    <span className="text-[#6B7160] font-sans font-medium">Temporary Password:</span>
+                    <span className="font-bold text-amber-800 tracking-wider font-mono text-sm">
+                      {createdCredentials.tempPassword}
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              <div className="p-4 bg-[#FAF7F2] border border-[#E9DFCE] rounded-xl space-y-2 font-mono text-xs">
-                <div className="flex justify-between border-b border-[#F0EBE1] pb-1.5">
-                  <span className="text-[#6B7160]">Resort Name:</span>
-                  <span className="font-bold text-[#1F3A2E]">{createdCredentials.resortName}</span>
+              <div className="dialog-footer flex items-center justify-between">
+                <span className="text-[11px] text-[#6B7160] hidden sm:inline">
+                  Share these credentials securely with the resort proprietor.
+                </span>
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      copyToClipboard(
+                        `Resort: ${createdCredentials.resortName}\nCode: ${createdCredentials.tenantCode}\nEmail: ${createdCredentials.ownerEmail}\nPassword: ${createdCredentials.tempPassword}`,
+                      )
+                    }
+                    className="flex items-center gap-1.5"
+                  >
+                    {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                    {copied ? 'Copied!' : 'Copy Credentials'}
+                  </Button>
+                  <Button onClick={() => setCreatedCredentials(null)}>Done</Button>
                 </div>
-                <div className="flex justify-between border-b border-[#F0EBE1] pb-1.5">
-                  <span className="text-[#6B7160]">Resort Code:</span>
-                  <span className="font-bold text-[#1F3A2E] bg-white px-1.5 py-0.5 rounded border border-[#E9DFCE]">
-                    {createdCredentials.tenantCode}
-                  </span>
-                </div>
-                <div className="flex justify-between border-b border-[#F0EBE1] pb-1.5">
-                  <span className="text-[#6B7160]">Owner Name:</span>
-                  <span className="font-bold text-[#1F3A2E]">{createdCredentials.ownerName}</span>
-                </div>
-                <div className="flex justify-between border-b border-[#F0EBE1] pb-1.5">
-                  <span className="text-[#6B7160]">Login Email:</span>
-                  <span className="font-bold text-[#1F3A2E]">{createdCredentials.ownerEmail}</span>
-                </div>
-                <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-[#E9DFCE]">
-                  <span className="text-[#6B7160]">Password:</span>
-                  <span className="font-bold text-amber-800 tracking-wider font-mono">
-                    {createdCredentials.tempPassword}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    copyToClipboard(
-                      `Resort: ${createdCredentials.resortName}\nCode: ${createdCredentials.tenantCode}\nEmail: ${createdCredentials.ownerEmail}\nPassword: ${createdCredentials.tempPassword}`,
-                    )
-                  }
-                  className="flex items-center gap-1.5"
-                >
-                  {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
-                  {copied ? 'Copied!' : 'Copy Credentials'}
-                </Button>
-                <Button onClick={() => setCreatedCredentials(null)}>Done</Button>
               </div>
             </div>
           </Modal>
@@ -1570,70 +1793,73 @@ export default function SuperAdminDashboard() {
             onClose={() => setEditTenant(null)}
             title={`Update Resort: ${editTenant.name} [${editTenant.code}]`}
             description="Update property domain details, active status, plan tier, or room capacity."
+            wide
           >
-            <form onSubmit={handleUpdateTenant} className="space-y-4 pt-2">
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Resort Property Name *</span>
-                <input
-                  type="text"
-                  required
-                  value={editTenantName}
-                  onChange={(e) => setEditTenantName(e.target.value)}
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                />
-              </label>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <form onSubmit={handleUpdateTenant} className="flex flex-col flex-1 min-h-0">
+              <div className="dialog-body space-y-4">
                 <label className="field block">
-                  <span className="text-xs font-semibold text-[#1F3A2E]">Tenant Status *</span>
-                  <select
-                    value={editTenantStatus}
-                    onChange={(e: any) => setEditTenantStatus(e.target.value)}
-                    className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Suspended">Suspended</option>
-                    <option value="Pending">Pending</option>
-                  </select>
-                </label>
-
-                <label className="field block">
-                  <span className="text-xs font-semibold text-[#1F3A2E]">SaaS Tier *</span>
-                  <select
-                    value={editTenantTier}
-                    onChange={(e) => setEditTenantTier(e.target.value)}
-                    className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                  >
-                    <option value="Enterprise">Enterprise</option>
-                    <option value="Premium">Premium</option>
-                    <option value="Standard">Standard</option>
-                  </select>
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <label className="field block">
-                  <span className="text-xs font-semibold text-[#1F3A2E]">Location</span>
+                  <span className="text-xs font-semibold text-[#1F3A2E]">Resort Property Name *</span>
                   <input
                     type="text"
-                    value={editTenantLocation}
-                    onChange={(e) => setEditTenantLocation(e.target.value)}
-                    className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
+                    required
+                    value={editTenantName}
+                    onChange={(e) => setEditTenantName(e.target.value)}
+                    className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
                   />
                 </label>
 
-                <label className="field block">
-                  <span className="text-xs font-semibold text-[#1F3A2E]">Rooms Capacity</span>
-                  <input
-                    type="number"
-                    value={editTenantRooms}
-                    onChange={(e) => setEditTenantRooms(Number(e.target.value))}
-                    className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                  />
-                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="field block">
+                    <span className="text-xs font-semibold text-[#1F3A2E]">Tenant Status *</span>
+                    <select
+                      value={editTenantStatus}
+                      onChange={(e: any) => setEditTenantStatus(e.target.value)}
+                      className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Suspended">Suspended</option>
+                      <option value="Pending">Pending</option>
+                    </select>
+                  </label>
+
+                  <label className="field block">
+                    <span className="text-xs font-semibold text-[#1F3A2E]">SaaS Tier *</span>
+                    <select
+                      value={editTenantTier}
+                      onChange={(e) => setEditTenantTier(e.target.value)}
+                      className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
+                    >
+                      <option value="Enterprise">Enterprise</option>
+                      <option value="Premium">Premium</option>
+                      <option value="Standard">Standard</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="field block">
+                    <span className="text-xs font-semibold text-[#1F3A2E]">Location</span>
+                    <input
+                      type="text"
+                      value={editTenantLocation}
+                      onChange={(e) => setEditTenantLocation(e.target.value)}
+                      className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
+                    />
+                  </label>
+
+                  <label className="field block">
+                    <span className="text-xs font-semibold text-[#1F3A2E]">Rooms Capacity</span>
+                    <input
+                      type="number"
+                      value={editTenantRooms}
+                      onChange={(e) => setEditTenantRooms(Number(e.target.value))}
+                      className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
+                    />
+                  </label>
+                </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-[#F0EBE1]">
+              <div className="dialog-footer flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setEditTenant(null)}>
                   Cancel
                 </Button>
@@ -1650,59 +1876,62 @@ export default function SuperAdminDashboard() {
             onClose={() => setEditOwner(null)}
             title={`Manage Owner: ${editOwner.name}`}
             description="Manage resort owner profile, credentials, and access activation."
+            wide
           >
-            <form onSubmit={handleUpdateOwner} className="space-y-4 pt-2">
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Owner Full Name *</span>
-                <input
-                  type="text"
-                  required
-                  value={editOwnerName}
-                  onChange={(e) => setEditOwnerName(e.target.value)}
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                />
-              </label>
+            <form onSubmit={handleUpdateOwner} className="flex flex-col flex-1 min-h-0">
+              <div className="dialog-body space-y-4">
+                <label className="field block">
+                  <span className="text-xs font-semibold text-[#1F3A2E]">Owner Full Name *</span>
+                  <input
+                    type="text"
+                    required
+                    value={editOwnerName}
+                    onChange={(e) => setEditOwnerName(e.target.value)}
+                    className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
+                  />
+                </label>
 
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Login Email *</span>
-                <input
-                  type="email"
-                  required
-                  value={editOwnerEmail}
-                  onChange={(e) => setEditOwnerEmail(e.target.value)}
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                />
-              </label>
+                <label className="field block">
+                  <span className="text-xs font-semibold text-[#1F3A2E]">Login Email *</span>
+                  <input
+                    type="email"
+                    required
+                    value={editOwnerEmail}
+                    onChange={(e) => setEditOwnerEmail(e.target.value)}
+                    className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
+                  />
+                </label>
 
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Password / Reset Password *</span>
-                <input
-                  type="text"
-                  required
-                  value={editOwnerPassword}
-                  onChange={(e) => setEditOwnerPassword(e.target.value)}
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs font-mono"
-                />
-              </label>
+                <label className="field block">
+                  <span className="text-xs font-semibold text-[#1F3A2E]">Password / Reset Password *</span>
+                  <input
+                    type="text"
+                    required
+                    value={editOwnerPassword}
+                    onChange={(e) => setEditOwnerPassword(e.target.value)}
+                    className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs font-mono"
+                  />
+                </label>
 
-              <div className="p-3 bg-[#FAF7F2] rounded-lg border border-[#E9DFCE] flex items-center justify-between">
-                <div>
-                  <strong className="text-xs text-[#1F3A2E] block">Account Status</strong>
-                  <span className="text-[11px] text-[#6B7160]">
-                    {editOwnerActive ? 'Owner can sign in normally.' : 'Account suspended from login.'}
-                  </span>
+                <div className="p-3 bg-[#FAF7F2] rounded-lg border border-[#E9DFCE] flex items-center justify-between">
+                  <div>
+                    <strong className="text-xs text-[#1F3A2E] block">Account Status</strong>
+                    <span className="text-[11px] text-[#6B7160]">
+                      {editOwnerActive ? 'Owner can sign in normally.' : 'Account suspended from login.'}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={editOwnerActive ? 'outline' : 'default'}
+                    onClick={() => setEditOwnerActive(!editOwnerActive)}
+                  >
+                    {editOwnerActive ? 'Active' : 'Suspended'}
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={editOwnerActive ? 'outline' : 'default'}
-                  onClick={() => setEditOwnerActive(!editOwnerActive)}
-                >
-                  {editOwnerActive ? 'Active' : 'Suspended'}
-                </Button>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-[#F0EBE1]">
+              <div className="dialog-footer flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setEditOwner(null)}>
                   Cancel
                 </Button>
@@ -1712,53 +1941,263 @@ export default function SuperAdminDashboard() {
           </Modal>
         )}
 
-        {/* MODAL 5: TICKET RESOLUTION */}
+        {/* MODAL 5: TICKET RESOLUTION & REPLIES */}
         {selectedTicket && (
           <Modal
             open={!!selectedTicket}
             onClose={() => setSelectedTicket(null)}
             title={`Ticket #${selectedTicket.id}: ${selectedTicket.title}`}
-            description={`Reported by ${selectedTicket.ownerName} [${selectedTicket.tenantCode}]`}
+            description={`Reported by ${selectedTicket.ownerName} [${selectedTicket.tenantCode}] · Assigned to ${selectedTicket.assigneeName || 'Platform Administrator'}`}
+            wide
           >
-            <form onSubmit={handleUpdateTicket} className="space-y-4 pt-2">
-              <div className="p-3 bg-[#FAF7F2] rounded-lg border border-[#E9DFCE] text-xs space-y-1">
-                <div className="font-semibold text-[#1F3A2E]">Issue Description:</div>
-                <p className="text-[#22261F] leading-relaxed">{selectedTicket.description}</p>
+            <form onSubmit={handleUpdateTicket} className="flex flex-col flex-1 min-h-0">
+              <div className="dialog-body space-y-4">
+                {/* Status & Priority Controls */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="field block">
+                    <span className="text-xs font-semibold text-[#1F3A2E]">Ticket Status *</span>
+                    <select
+                      value={ticketStatus}
+                      onChange={(e: any) => setTicketStatus(e.target.value)}
+                      className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs font-semibold"
+                    >
+                      <option value="OPEN">Open</option>
+                      <option value="IN_PROGRESS">In Progress</option>
+                      <option value="RESOLVED">Resolved</option>
+                      <option value="CLOSED">Closed</option>
+                    </select>
+                  </label>
+
+                  <label className="field block">
+                    <span className="text-xs font-semibold text-[#1F3A2E]">Priority Level *</span>
+                    <select
+                      value={ticketPriority}
+                      onChange={(e: any) => setTicketPriority(e.target.value)}
+                      className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs font-semibold"
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                      <option value="CRITICAL">Critical</option>
+                    </select>
+                  </label>
+                </div>
+
+                {/* Issue Description */}
+                <div className="p-3 bg-[#FAF7F2] rounded-lg border border-[#E9DFCE] text-xs space-y-1">
+                  <div className="font-semibold text-[#1F3A2E] flex items-center justify-between">
+                    <span>Issue Description:</span>
+                    <span className="font-normal text-[#6B7160]">
+                      {new Date(selectedTicket.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-[#22261F] leading-relaxed whitespace-pre-line">{selectedTicket.description}</p>
+                </div>
+
+                {/* Attachments from Owner */}
+                {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-semibold text-[#1F3A2E] flex items-center gap-1.5">
+                      <Paperclip size={13} className="text-[#C9A227]" />
+                      Uploaded Documents & Screenshots ({selectedTicket.attachments.length}):
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {selectedTicket.attachments.map((att) => (
+                        <button
+                          key={att.id}
+                          type="button"
+                          onClick={() => setPreviewAttachment(att)}
+                          className="flex items-center gap-2 p-2 bg-white hover:bg-[#FAF7F2] border border-[#E9DFCE] rounded-lg text-left text-xs transition-all cursor-pointer group"
+                        >
+                          {att.type.startsWith('image/') ? (
+                            <img
+                              src={att.dataUrl}
+                              alt={att.name}
+                              className="w-9 h-9 rounded object-cover border border-[#E9DFCE] shrink-0"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200 shrink-0">
+                              <FileText size={18} />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate font-medium text-[11px] text-[#1F3A2E] group-hover:underline">
+                              {att.name}
+                            </span>
+                            <span className="block text-[10px] text-[#6B7160]">
+                              {(att.size / 1024).toFixed(0)} KB
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Conversation & Replies Thread */}
+                {selectedTicket.replies && selectedTicket.replies.length > 0 && (
+                  <div className="space-y-2 border-t border-[#F0EBE1] pt-3">
+                    <span className="text-xs font-semibold text-[#1F3A2E] flex items-center gap-1.5">
+                      <MessageSquare size={13} className="text-[#C9A227]" />
+                      Conversation History ({selectedTicket.replies.length}):
+                    </span>
+                    <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+                      {selectedTicket.replies.map((reply) => (
+                        <div
+                          key={reply.id}
+                          className={`p-3 rounded-lg text-xs space-y-1 ${
+                            reply.senderRole === 'SUPER_ADMIN'
+                              ? 'bg-emerald-50/70 border border-emerald-200/80 ml-4'
+                              : 'bg-white border border-[#E9DFCE] mr-4'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[11px]">
+                            <strong className="text-[#1F3A2E] flex items-center gap-1">
+                              {reply.senderName}
+                              <span
+                                className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                                  reply.senderRole === 'SUPER_ADMIN'
+                                    ? 'bg-emerald-200/80 text-emerald-900'
+                                    : 'bg-amber-100 text-amber-900'
+                                }`}
+                              >
+                                {reply.senderRole === 'SUPER_ADMIN' ? 'Super Admin' : 'Owner'}
+                              </span>
+                            </strong>
+                            <span className="text-[#6B7160] text-[10px]">
+                              {new Date(reply.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-[#22261F] leading-relaxed whitespace-pre-line">{reply.message}</p>
+                          {reply.attachments && reply.attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {reply.attachments.map((att) => (
+                                <button
+                                  key={att.id}
+                                  type="button"
+                                  onClick={() => setPreviewAttachment(att)}
+                                  className="text-[10px] text-emerald-800 underline flex items-center gap-1 bg-white/80 px-2 py-0.5 rounded border border-emerald-200"
+                                >
+                                  <Paperclip size={10} /> {att.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Reply composer for Super Admin */}
+                <div className="space-y-2 border-t border-[#F0EBE1] pt-3">
+                  <label className="field block">
+                    <span className="text-xs font-semibold text-[#1F3A2E] flex items-center gap-1">
+                      <Send size={12} className="text-[#C9A227]" />
+                      Reply & Message Owner ({selectedTicket.ownerName})
+                    </span>
+                    <textarea
+                      rows={2}
+                      value={adminReply}
+                      onChange={(e) => setAdminReply(e.target.value)}
+                      placeholder="Type a response or update to send directly to the resort owner..."
+                      className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
+                    />
+                  </label>
+                </div>
+
+                {/* Technical Resolution Notes */}
+                <label className="field block">
+                  <span className="text-xs font-semibold text-[#1F3A2E]">
+                    Engineering Resolution Notes (Internal / Status Audit)
+                  </span>
+                  <textarea
+                    rows={2}
+                    value={ticketResolution}
+                    onChange={(e) => setTicketResolution(e.target.value)}
+                    placeholder="Detail engineering patch, root cause, or resolution steps..."
+                    className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
+                  />
+                </label>
+
+                {/* Ticket History / Timeline */}
+                {selectedTicket.history && selectedTicket.history.length > 0 && (
+                  <div className="space-y-1.5 border-t border-[#F0EBE1] pt-2">
+                    <span className="text-[11px] font-semibold text-[#6B7160] flex items-center gap-1">
+                      <History size={12} />
+                      Ticket Lifecycle Audit Trail:
+                    </span>
+                    <div className="text-[11px] space-y-1 text-[#6B7160] max-h-24 overflow-y-auto pl-2 border-l-2 border-[#E9DFCE]">
+                      {selectedTicket.history.map((h) => (
+                        <div key={h.id} className="flex items-center gap-2">
+                          <span className="font-mono text-[10px]">{new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>·</span>
+                          <strong className="text-[#1F3A2E]">{h.actorName}</strong>: {h.details || h.action}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Ticket Status *</span>
-                <select
-                  value={ticketStatus}
-                  onChange={(e: any) => setTicketStatus(e.target.value)}
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs font-semibold"
-                >
-                  <option value="OPEN">Open</option>
-                  <option value="IN_PROGRESS">In Progress</option>
-                  <option value="RESOLVED">Resolved</option>
-                </select>
-              </label>
-
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">
-                  Technical Resolution / Response to Owner
+              <div className="dialog-footer flex justify-between items-center">
+                <span className="text-[11px] text-[#6B7160]">
+                  Ticket #{selectedTicket.id} · Priority: {ticketPriority}
                 </span>
-                <textarea
-                  rows={4}
-                  value={ticketResolution}
-                  onChange={(e) => setTicketResolution(e.target.value)}
-                  placeholder="Detail engineering patch, root cause, or resolution steps..."
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                />
-              </label>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-[#F0EBE1]">
-                <Button type="button" variant="outline" onClick={() => setSelectedTicket(null)}>
-                  Cancel
-                </Button>
-                <Button type="submit">Save Resolution</Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={() => setSelectedTicket(null)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Save Changes & Send Reply</Button>
+                </div>
               </div>
             </form>
+          </Modal>
+        )}
+
+        {/* ATTACHMENT PREVIEW MODAL */}
+        {previewAttachment && (
+          <Modal
+            open={!!previewAttachment}
+            onClose={() => setPreviewAttachment(null)}
+            title={previewAttachment.name}
+            description={`${previewAttachment.type} · ${(previewAttachment.size / 1024).toFixed(0)} KB`}
+            wide
+          >
+            <div className="dialog-body flex flex-col items-center justify-center p-4">
+              {previewAttachment.type.startsWith('image/') ? (
+                <img
+                  src={previewAttachment.dataUrl}
+                  alt={previewAttachment.name}
+                  className="max-h-[500px] w-auto rounded-lg shadow-md object-contain border border-[#E9DFCE]"
+                />
+              ) : (
+                <div className="text-center p-8 space-y-3">
+                  <FileText size={48} className="mx-auto text-amber-600" />
+                  <p className="text-sm font-semibold text-[#1F3A2E]">{previewAttachment.name}</p>
+                  <p className="text-xs text-[#6B7160]">PDF Document</p>
+                  <a
+                    href={previewAttachment.dataUrl}
+                    download={previewAttachment.name}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1F3A2E] text-white rounded-lg text-xs font-semibold hover:bg-[#2B4C3E]"
+                  >
+                    <Download size={14} /> Download Document
+                  </a>
+                </div>
+              )}
+            </div>
+            <div className="dialog-footer flex justify-between items-center">
+              <a
+                href={previewAttachment.dataUrl}
+                download={previewAttachment.name}
+                className="inline-flex items-center gap-1.5 text-xs text-[#1F3A2E] hover:underline"
+              >
+                <Download size={13} /> Download File
+              </a>
+              <Button type="button" onClick={() => setPreviewAttachment(null)}>
+                Close Preview
+              </Button>
+            </div>
           </Modal>
         )}
 
@@ -1768,81 +2207,84 @@ export default function SuperAdminDashboard() {
           onClose={() => setCreateTicketModal(false)}
           title="Open Technical Incident / Workflow Issue"
           description="Log a technical issue or gateway event on behalf of a resort tenant."
+          wide
         >
-          <form onSubmit={handleCreateTicket} className="space-y-4 pt-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Resort Tenant *</span>
-                <select
-                  value={newTicketTenant}
-                  onChange={(e) => setNewTicketTenant(e.target.value)}
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs font-mono"
-                >
-                  {tenants.map((t) => (
-                    <option key={t.code} value={t.code}>
-                      [{t.code}] {t.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+          <form onSubmit={handleCreateTicket} className="flex flex-col flex-1 min-h-0">
+            <div className="dialog-body space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="field block">
+                  <span className="text-xs font-semibold text-[#1F3A2E]">Resort Tenant *</span>
+                  <select
+                    value={newTicketTenant}
+                    onChange={(e) => setNewTicketTenant(e.target.value)}
+                    className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs font-mono"
+                  >
+                    {tenants.map((t) => (
+                      <option key={t.code} value={t.code}>
+                        [{t.code}] {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field block">
+                  <span className="text-xs font-semibold text-[#1F3A2E]">Category *</span>
+                  <select
+                    value={newTicketCategory}
+                    onChange={(e) => setNewTicketCategory(e.target.value)}
+                    className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
+                  >
+                    <option value="PAYMENTS">PAYMENTS (Payment Gateway & Folio)</option>
+                    <option value="INTEGRATIONS">INTEGRATIONS (OTA Channel Manager)</option>
+                    <option value="INFRASTRUCTURE">INFRASTRUCTURE (Email & Telemetry)</option>
+                    <option value="SECURITY">SECURITY (Rate Limiting & Authentication)</option>
+                    <option value="SYSTEM">SYSTEM (Workflow & Configuration)</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="field block">
+                  <span className="text-xs font-semibold text-[#1F3A2E]">Priority Level *</span>
+                  <select
+                    value={newTicketPriority}
+                    onChange={(e: any) => setNewTicketPriority(e.target.value)}
+                    className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs font-semibold"
+                  >
+                    <option value="CRITICAL">CRITICAL (System Blocker)</option>
+                    <option value="HIGH">HIGH (Degraded Service)</option>
+                    <option value="MEDIUM">MEDIUM (Minor Issue)</option>
+                    <option value="LOW">LOW (Cosmetic / Low Impact)</option>
+                  </select>
+                </label>
+
+                <label className="field block">
+                  <span className="text-xs font-semibold text-[#1F3A2E]">Incident Summary *</span>
+                  <input
+                    type="text"
+                    required
+                    value={newTicketTitle}
+                    onChange={(e) => setNewTicketTitle(e.target.value)}
+                    placeholder="e.g. Ingress webhook timeout on folio payments"
+                    className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
+                  />
+                </label>
+              </div>
 
               <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Category *</span>
-                <select
-                  value={newTicketCategory}
-                  onChange={(e) => setNewTicketCategory(e.target.value)}
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-                >
-                  <option value="PAYMENTS">PAYMENTS (Payment Gateway & Folio)</option>
-                  <option value="INTEGRATIONS">INTEGRATIONS (OTA Channel Manager)</option>
-                  <option value="INFRASTRUCTURE">INFRASTRUCTURE (Email & Telemetry)</option>
-                  <option value="SECURITY">SECURITY (Rate Limiting & Authentication)</option>
-                  <option value="SYSTEM">SYSTEM (Workflow & Configuration)</option>
-                </select>
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Priority Level *</span>
-                <select
-                  value={newTicketPriority}
-                  onChange={(e: any) => setNewTicketPriority(e.target.value)}
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs font-semibold"
-                >
-                  <option value="CRITICAL">CRITICAL (System Blocker)</option>
-                  <option value="HIGH">HIGH (Degraded Service)</option>
-                  <option value="MEDIUM">MEDIUM (Minor Issue)</option>
-                  <option value="LOW">LOW (Cosmetic / Low Impact)</option>
-                </select>
-              </label>
-
-              <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Incident Summary *</span>
-                <input
-                  type="text"
+                <span className="text-xs font-semibold text-[#1F3A2E]">Technical Description *</span>
+                <textarea
+                  rows={4}
                   required
-                  value={newTicketTitle}
-                  onChange={(e) => setNewTicketTitle(e.target.value)}
-                  placeholder="e.g. Ingress webhook timeout on folio payments"
-                  className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
+                  value={newTicketDescription}
+                  onChange={(e) => setNewTicketDescription(e.target.value)}
+                  placeholder="Describe the failure mode, affected tenant shard, or replication steps..."
+                  className="w-full mt-1 p-2.5 border border-[#E9DFCE] rounded-lg text-xs"
                 />
               </label>
             </div>
 
-            <label className="field block">
-              <span className="text-xs font-semibold text-[#1F3A2E]">Technical Description *</span>
-              <textarea
-                rows={4}
-                required
-                value={newTicketDescription}
-                onChange={(e) => setNewTicketDescription(e.target.value)}
-                placeholder="Describe the failure mode, affected tenant shard, or replication steps..."
-                className="w-full mt-1 p-2 border border-[#E9DFCE] rounded-lg text-xs"
-              />
-            </label>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-[#F0EBE1]">
+            <div className="dialog-footer flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setCreateTicketModal(false)}>
                 Cancel
               </Button>
