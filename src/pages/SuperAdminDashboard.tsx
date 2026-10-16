@@ -28,7 +28,6 @@ import {
   Mail,
   User,
   BedDouble,
-  Sparkles,
   Eye,
   EyeOff,
   Lock,
@@ -1630,20 +1629,8 @@ export default function SuperAdminDashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                   <div>
-                    <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5 flex items-center justify-between">
-                      <span>Temporary Password <span className="text-red-500">*</span></span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const base = tenantCode ? tenantCode.charAt(0) + tenantCode.slice(1).toLowerCase() : 'Resort';
-                          const pass = `${base}@${Math.floor(100 + Math.random() * 900)}!`;
-                          setOwnerPassword(pass);
-                          toast.info(`Generated password: ${pass}`);
-                        }}
-                        className="text-[11px] text-[#C9A227] hover:text-[#B38F1E] font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                      >
-                        <Sparkles size={12} /> Auto-Generate
-                      </button>
+                    <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
+                      Temporary Password <span className="text-red-500">*</span>
                     </label>
                     <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-[#E9DFCE] focus-within:border-[#C9A227] focus-within:ring-2 focus-within:ring-[#C9A227]/20 rounded-xl transition-all">
                       <Lock size={16} className="text-[#6B7160] shrink-0" />

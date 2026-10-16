@@ -34,6 +34,7 @@ import {
   Waves,
   ArrowRight,
   Building2,
+  LifeBuoy,
 } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { can, roles, shortDate, initials } from '../lib/domain';
@@ -152,8 +153,14 @@ export function Layout() {
     [search, setSearch] = useState(''),
     [searchOpen, setSearchOpen] = useState(false),
     [searchIndex, setSearchIndex] = useState(0);
+  const [tenantSupportOpen, setTenantSupportOpen] = useState(true);
   const location = useLocation(),
     navigate = useNavigate();
+  useEffect(() => {
+    if (location.search.includes('ticket=')) {
+      setTenantSupportOpen(true);
+    }
+  }, [location.search]);
   useEffect(() => {
     setSearch('');
     setSearchOpen(false);
@@ -224,6 +231,26 @@ export function Layout() {
   const results = search.trim()
     ? nav.filter((i) => i.label.toLowerCase().includes(search.trim().toLowerCase()))
     : [];
+  const activeOwnerTicketsCount =
+    actor.module === 'Owner'
+      ? (s.platformTickets ?? []).filter((t) => {
+          const matchesOwner =
+            t.creatorId === actor.id ||
+            t.ownerEmail === actor.email ||
+            t.tenantCode === (actor.tenantId || 'PALM');
+          return matchesOwner && t.status !== 'CLOSED';
+        }).length
+      : 0;
+  const handleCreateTicket = () => {
+    setMobile(false);
+    navigate('/owner/dashboard?ticket=create');
+    window.dispatchEvent(new CustomEvent('rrms-open-ticket', { detail: 'create' }));
+  };
+  const handleMyTickets = () => {
+    setMobile(false);
+    navigate('/owner/dashboard?ticket=my-tickets');
+    window.dispatchEvent(new CustomEvent('rrms-open-ticket', { detail: 'my-tickets' }));
+  };
   return (
     <div className={`app-shell theme-${actor.module.toLowerCase()}`}>
       <a className="skip-link" href="#main-content">
@@ -332,6 +359,82 @@ export function Layout() {
               </div>
             );
           })}
+          {actor.module === 'Owner' && (
+            <div className="tenant-support-section mt-1">
+              <div className="nav-section">SUPPORT & ESCALATIONS</div>
+              <button
+                type="button"
+                id="owner-tenant-support-toggle"
+                onClick={() => setTenantSupportOpen(!tenantSupportOpen)}
+                className={`nav-item w-full text-left cursor-pointer flex items-center justify-between ${
+                  location.search.includes('ticket=') ? 'nav-active' : ''
+                }`}
+                aria-expanded={tenantSupportOpen}
+                aria-controls="tenant-support-submenu"
+              >
+                <div className="flex items-center gap-2.5">
+                  <LifeBuoy size={18} />
+                  <span>Tenant Support</span>
+                </div>
+                <div className="flex items-center gap-1.5 ml-auto">
+                  {activeOwnerTicketsCount > 0 && (
+                    <small className="nav-count">{activeOwnerTicketsCount}</small>
+                  )}
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 ${
+                      tenantSupportOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </div>
+              </button>
+              {tenantSupportOpen && (
+                <div
+                  id="tenant-support-submenu"
+                  className="border-l border-white/10 ml-4 pl-2 space-y-0.5 mt-0.5"
+                >
+                  <button
+                    type="button"
+                    id="owner-create-ticket-btn"
+                    onClick={handleCreateTicket}
+                    className={`nav-item w-full text-left cursor-pointer flex items-center gap-2 text-xs py-2 px-2.5 ${
+                      location.pathname.includes('/owner/dashboard') &&
+                      location.search.includes('ticket=create')
+                        ? 'nav-active'
+                        : ''
+                    }`}
+                    style={{ minHeight: '36px' }}
+                  >
+                    <LifeBuoy size={15} className="text-[#C9A227] shrink-0" />
+                    <span>Create Ticket</span>
+                  </button>
+                  <button
+                    type="button"
+                    id="owner-my-tickets-btn"
+                    onClick={handleMyTickets}
+                    className={`nav-item w-full text-left cursor-pointer flex items-center justify-between text-xs py-2 px-2.5 ${
+                      location.pathname.includes('/owner/dashboard') &&
+                      (location.search.includes('ticket=my-tickets') ||
+                        location.search.includes('ticket=view'))
+                        ? 'nav-active'
+                        : ''
+                    }`}
+                    style={{ minHeight: '36px' }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <MessageSquare size={15} className="shrink-0" />
+                      <span>My Tickets</span>
+                    </div>
+                    {activeOwnerTicketsCount > 0 && (
+                      <span className="px-1.5 py-0.2 bg-[#C9A227] text-white font-bold text-[10px] rounded-full">
+                        {activeOwnerTicketsCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </nav>
         <div className="sidebar-bottom">
           <div className="hospitality-note">

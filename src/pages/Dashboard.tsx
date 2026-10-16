@@ -1,6 +1,6 @@
 import { findRoom } from '../lib/domain';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useReducedMotion } from 'framer-motion';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -252,6 +252,8 @@ function OperationsDashboard() {
     : 0;
   const go = (path: string) => navigate(`${base}/${path}`);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // Owner Support Tickets state
   const [createTicketOpen, setCreateTicketOpen] = useState(false);
   const [ticketTitle, setTicketTitle] = useState('');
@@ -267,6 +269,51 @@ function OperationsDashboard() {
   const [ownerReplyMessage, setOwnerReplyMessage] = useState('');
   const [ownerReplyAttachments, setOwnerReplyAttachments] = useState<TicketAttachment[]>([]);
   const [ownerPreviewAttachment, setOwnerPreviewAttachment] = useState<TicketAttachment | null>(null);
+
+  useEffect(() => {
+    const ticketParam = searchParams.get('ticket');
+    if (ticketParam === 'create') {
+      setCreateTicketOpen(true);
+      setOwnerTicketsOpen(false);
+    } else if (ticketParam === 'my-tickets' || ticketParam === 'view') {
+      setOwnerTicketsOpen(true);
+      setCreateTicketOpen(false);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const handleTicketEvent = (e: any) => {
+      const detail = e.detail?.action || e.detail;
+      if (detail === 'create') {
+        setCreateTicketOpen(true);
+        setOwnerTicketsOpen(false);
+      } else if (detail === 'my-tickets' || detail === 'view') {
+        setOwnerTicketsOpen(true);
+        setCreateTicketOpen(false);
+      }
+    };
+    window.addEventListener('rrms-open-ticket', handleTicketEvent);
+    return () => window.removeEventListener('rrms-open-ticket', handleTicketEvent);
+  }, []);
+
+  const handleCloseCreateTicket = () => {
+    setCreateTicketOpen(false);
+    if (searchParams.get('ticket') === 'create') {
+      const next = new URLSearchParams(searchParams);
+      next.delete('ticket');
+      setSearchParams(next, { replace: true });
+    }
+  };
+
+  const handleCloseOwnerTickets = () => {
+    setOwnerTicketsOpen(false);
+    setSelectedOwnerTicket(null);
+    if (searchParams.get('ticket') === 'my-tickets' || searchParams.get('ticket') === 'view') {
+      const next = new URLSearchParams(searchParams);
+      next.delete('ticket');
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   // Tickets belonging to this owner
   const myTickets: PlatformTicket[] = (s.platformTickets ?? []).filter((t) => {
@@ -374,7 +421,7 @@ function OperationsDashboard() {
     );
 
     if (ok) {
-      setCreateTicketOpen(false);
+      handleCloseCreateTicket();
       setTicketTitle('');
       setTicketCategory('Technical Issue');
       setTicketDescription('');
@@ -443,30 +490,6 @@ function OperationsDashboard() {
               Today
               <ChevronRight size={14} />
             </Button>
-            {owner && (
-              <>
-                <Button
-                  onClick={() => setCreateTicketOpen(true)}
-                  className="bg-[#1F3A2E] hover:bg-[#2B4C3E] text-white flex items-center gap-1.5 shadow-xs font-semibold text-xs"
-                >
-                  <LifeBuoy size={15} className="text-[#C9A227]" />
-                  Create Ticket
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setOwnerTicketsOpen(true)}
-                  className="flex items-center gap-1.5 text-xs relative"
-                >
-                  <MessageSquare size={14} />
-                  My Tickets
-                  {activeOwnerTickets.length > 0 && (
-                    <span className="ml-1 px-1.5 py-0.2 bg-[#C9A227] text-white font-bold text-[10px] rounded-full">
-                      {activeOwnerTickets.length}
-                    </span>
-                  )}
-                </Button>
-              </>
-            )}
             {can(s, actor!, 'reservations') && !owner && (
               <Button onClick={() => go('reservations?new=1')}>
                 <Plus size={17} />
@@ -1021,7 +1044,7 @@ function OperationsDashboard() {
       {/* CREATE SUPPORT TICKET MODAL */}
       <Modal
         open={createTicketOpen}
-        onClose={() => setCreateTicketOpen(false)}
+        onClose={handleCloseCreateTicket}
         title="Create Support Ticket"
         description="Submit a technical request, issue report, or system inquiry directly to the Super Admin."
         wide
@@ -1189,7 +1212,7 @@ function OperationsDashboard() {
           </div>
 
           <div className="dialog-footer flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setCreateTicketOpen(false)}>
+            <Button type="button" variant="outline" onClick={handleCloseCreateTicket}>
               Cancel
             </Button>
             <Button type="submit" className="bg-[#1F3A2E] hover:bg-[#2B4C3E] text-white">
@@ -1202,10 +1225,7 @@ function OperationsDashboard() {
       {/* OWNER TICKETS TRACKER MODAL */}
       <Modal
         open={ownerTicketsOpen}
-        onClose={() => {
-          setOwnerTicketsOpen(false);
-          setSelectedOwnerTicket(null);
-        }}
+        onClose={handleCloseOwnerTickets}
         title={
           currentSelectedTicket
             ? `Ticket #${currentSelectedTicket.id}: ${currentSelectedTicket.title}`
@@ -1557,10 +1577,7 @@ function OperationsDashboard() {
         <div className="dialog-footer flex justify-end items-center">
           <Button
             type="button"
-            onClick={() => {
-              setOwnerTicketsOpen(false);
-              setSelectedOwnerTicket(null);
-            }}
+            onClick={handleCloseOwnerTickets}
           >
             Close
           </Button>
