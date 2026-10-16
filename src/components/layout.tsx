@@ -435,19 +435,24 @@ export function Layout() {
               )}
             </div>
           )}
+          {actor.module === 'SuperAdmin' && (
+            <div className="superadmin-help-section mt-3 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                id="superadmin-help-button"
+                className="nav-item w-full text-left cursor-pointer flex items-center justify-between"
+                onClick={() => setHelp(true)}
+              >
+                <div className="flex items-center gap-2.5">
+                  <CircleHelp size={18} />
+                  <span>Help & getting started</span>
+                </div>
+                <ArrowUpRight size={14} className="opacity-70" />
+              </button>
+            </div>
+          )}
         </nav>
         <div className="sidebar-bottom">
-          <div className="hospitality-note">
-            <span className="note-sun">✳</span>
-            <h3>Great stays start with you.</h3>
-            <p>A little care makes all the difference.</p>
-            <button onClick={() => setHelp(true)}>
-              Your workspace guide <ArrowUpRight size={14} />
-            </button>
-          </div>
-          <button className="help-button" onClick={() => setHelp(true)}>
-            <CircleHelp size={18} /> Help & getting started <ArrowUpRight size={14} />
-          </button>
           <div className="sidebar-footer">
             <span className="live-dot" /> All systems operational <span>v1.0</span>
           </div>
@@ -611,10 +616,12 @@ export function Layout() {
                   My profile
                 </MenuItem>
               )}
-              <MenuItem onSelect={() => setHelp(true)}>
-                <CircleHelp size={16} />
-                Demo accounts & guide
-              </MenuItem>
+              {actor.module === 'SuperAdmin' && (
+                <MenuItem onSelect={() => setHelp(true)}>
+                  <CircleHelp size={16} />
+                  Demo accounts & guide
+                </MenuItem>
+              )}
               <MenuItem onSelect={() => setResetOpen(true)}>
                 <RotateCcw size={16} />
                 Reset demo data
@@ -699,7 +706,7 @@ export function Layout() {
           }}
         />
       )}
-      {help && (
+      {help && actor.module === 'SuperAdmin' && (
         <Modal
           open
           wide
@@ -707,7 +714,7 @@ export function Layout() {
           title="One resort. Every perspective."
           description="Explore the connected demo using the workspace switcher. All payments, credentials, uploads and messages are simulated."
         >
-          <div className="dialog-body">
+          <div className="dialog-body max-h-[75vh] overflow-y-auto">
             <div className="info-box">
               Try the full journey: confirm a reservation → sign in as its guest → check in →
               request and complete a service → settle the bill → check out → leave a review.
