@@ -108,7 +108,11 @@ export enum TicketStatus {
 
 // ticket-category.enum.ts
 export enum TicketCategory {
+  PAYMENTS = 'PAYMENTS',
+  INTEGRATIONS = 'INTEGRATIONS',
   INFRASTRUCTURE = 'INFRASTRUCTURE',
+  SECURITY = 'SECURITY',
+  SYSTEM = 'SYSTEM',
   BILLING = 'BILLING',
   AUTHENTICATION = 'AUTHENTICATION',
   DATA_CORRUPTION = 'DATA_CORRUPTION',
@@ -120,8 +124,10 @@ export enum TicketCategory {
 export enum PlatformAuditSeverity {
   INFO = 'INFO',
   WARNING = 'WARNING',
-  CRITICAL = 'CRITICAL'
+  CRITICAL = 'CRITICAL',
+  SECURITY_ALERT = 'SECURITY_ALERT'
 }
+export { PlatformAuditSeverity as AuditSeverity };
 
 // super-admin-role.enum.ts
 export enum SuperAdminRole {
@@ -387,6 +393,7 @@ export class PlatformTicket extends AggregateRoot<TicketId> {
   public creatorId?: string;
   public assigneeId?: string;
   public assigneeName?: string;
+  public assigneeEmail?: string;
   public title: string;
   public category: TicketCategory;
   public priority: TicketPriority;
@@ -424,9 +431,10 @@ export class PlatformTicket extends AggregateRoot<TicketId> {
     return Result.ok(ticket);
   }
 
-  public assignAgent(agentId: string, agentName: string, actor: string): void {
+  public assignAgent(agentId: string, agentName: string, actor: string, agentEmail?: string): void {
     this.assigneeId = agentId;
     this.assigneeName = agentName;
+    this.assigneeEmail = agentEmail;
     this.status = TicketStatus.IN_PROGRESS;
     this.history.push(
       new TicketHistoryEntry(crypto.randomUUID(), actor, 'ADMIN', 'Assigned agent', `Assigned to ${agentName}`)
@@ -497,12 +505,16 @@ export class TicketReply extends BaseEntity<string> {
 
 // ticket-attachment.entity.ts
 export class TicketAttachment extends BaseEntity<string> {
+  public get type(): string { return this.mimeType; }
+  public get size(): number { return this.sizeBytes; }
+
   public constructor(
     id: string,
     public readonly name: string,
-    public readonly mimeType: string,
-    public readonly sizeBytes: number,
-    public readonly dataUrl: string
+    public readonly mimeType: string = 'application/octet-stream',
+    public readonly sizeBytes: number = 0,
+    public readonly dataUrl: string = '',
+    public readonly storageKey?: string
   ) {
     super(id);
   }

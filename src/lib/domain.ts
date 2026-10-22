@@ -89,13 +89,29 @@ export interface Account {
   tenantId?: string | null;
 }
 
+export type SuperAdminRole = 'SUPER_ADMIN' | 'SUPPORT_SPECIALIST' | 'PLATFORM_AUDITOR';
+export type TenantStatusType = 'Active' | 'Suspended' | 'Pending' | 'Archived';
+export type PlatformAuditSeverityType = 'INFO' | 'WARNING' | 'CRITICAL' | 'SECURITY_ALERT';
+export type TicketCategory =
+  | 'PAYMENTS'
+  | 'INTEGRATIONS'
+  | 'INFRASTRUCTURE'
+  | 'SECURITY'
+  | 'SYSTEM'
+  | 'BILLING'
+  | 'AUTHENTICATION'
+  | 'DATA_CORRUPTION'
+  | 'FEATURE_REQUEST'
+  | 'GENERAL_SUPPORT';
+
 export interface Tenant {
   id: string;
   code: string;
   name: string;
-  status: 'Active' | 'Suspended' | 'Pending';
+  status: TenantStatusType;
   tier?: string;
   createdAt: string;
+  createdBy?: string;
   ownerId?: string;
   ownerName?: string;
   ownerEmail?: string;
@@ -109,6 +125,8 @@ export interface TicketAttachment {
   type: string;
   size: number;
   dataUrl: string;
+  storageKey?: string;
+  timestamp?: string;
 }
 
 export interface TicketReply {
@@ -141,7 +159,7 @@ export interface PlatformTicket {
   assigneeName?: string;
   assigneeEmail?: string;
   title: string;
-  category: string;
+  category: TicketCategory | string;
   priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
   status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
   description: string;
@@ -172,7 +190,19 @@ export interface PlatformAuditLog {
   action: string;
   tenantCode?: string;
   details: string;
-  severity: 'INFO' | 'WARNING' | 'CRITICAL';
+  severity: PlatformAuditSeverityType;
+  ipAddress?: string;
+}
+
+export interface SystemTelemetrySnapshot {
+  id: string;
+  activeTenants: number;
+  totalRoomsManaged: number;
+  cpuUsagePercent: number;
+  memoryUsagePercent: number;
+  openCriticalTickets: number;
+  apiRequestsPerMinute: number;
+  timestamp: string;
 }
 export interface Reservation {
   id: string;
@@ -342,6 +372,7 @@ export interface State {
   platformTickets?: PlatformTicket[];
   platformConfig?: PlatformConfig;
   platformAudit?: PlatformAuditLog[];
+  platformTelemetry?: SystemTelemetrySnapshot;
 }
 // Historical references remain readable after a room leaves the active inventory.
 export const findRoom = (s: State, id: string | undefined) =>
