@@ -104,6 +104,18 @@ export type TicketCategory =
   | 'FEATURE_REQUEST'
   | 'GENERAL_SUPPORT';
 
+export interface TenantProvisionPayload {
+  code: string;
+  name: string;
+  ownerName: string;
+  resortEmail: string;
+  ownerEmail?: string;
+  password?: string;
+  tier?: string;
+  location?: string;
+  roomsCount?: number;
+}
+
 export interface Tenant {
   id: string;
   code: string;
@@ -115,6 +127,7 @@ export interface Tenant {
   ownerId?: string;
   ownerName?: string;
   ownerEmail?: string;
+  resortEmail?: string;
   location?: string;
   roomsCount?: number;
 }
@@ -617,6 +630,7 @@ export function initialTenants(): Tenant[] {
       ownerId: 'owner',
       ownerName: 'Vikram Oberoi',
       ownerEmail: 'owner@rrms.demo',
+      resortEmail: 'contact@palm.demo',
       location: 'Candolim, Goa · India',
       roomsCount: 30,
     },
@@ -630,6 +644,7 @@ export function initialTenants(): Tenant[] {
       ownerId: 'owner-azure',
       ownerName: 'Sarah Jenkins',
       ownerEmail: 'azure.owner@rrms.demo',
+      resortEmail: 'contact@azurebay.demo',
       location: 'Alibaug, Maharashtra · India',
       roomsCount: 24,
     },
@@ -643,6 +658,7 @@ export function initialTenants(): Tenant[] {
       ownerId: 'owner-alpine',
       ownerName: 'Marco Rossi',
       ownerEmail: 'alpine.owner@rrms.demo',
+      resortEmail: 'contact@alpinelodge.demo',
       location: 'Manali, Himachal Pradesh · India',
       roomsCount: 18,
     },
@@ -656,6 +672,7 @@ export function initialTenants(): Tenant[] {
       ownerId: 'owner-coral',
       ownerName: 'Elena Rostova',
       ownerEmail: 'coral.owner@rrms.demo',
+      resortEmail: 'contact@coralsands.demo',
       location: 'Havelock, Andaman · India',
       roomsCount: 36,
     },
@@ -674,7 +691,8 @@ export function initialPlatformTickets(): PlatformTicket[] {
       category: 'PAYMENTS',
       priority: 'CRITICAL',
       status: 'IN_PROGRESS',
-      description: 'HDFC payment gateway webhooks experiencing high latency during peak checkout turnovers. Folio payments show temporary pending state.',
+      description:
+        'HDFC payment gateway webhooks experiencing high latency during peak checkout turnovers. Folio payments show temporary pending state.',
       resolutionNotes: '',
       createdAt: '2026-09-20T10:15:00Z',
     },
@@ -688,7 +706,8 @@ export function initialPlatformTickets(): PlatformTicket[] {
       category: 'INTEGRATIONS',
       priority: 'HIGH',
       status: 'OPEN',
-      description: 'Room inventory update lag with Booking.com sync queue causing occasional double-hold attempts.',
+      description:
+        'Room inventory update lag with Booking.com sync queue causing occasional double-hold attempts.',
       resolutionNotes: '',
       createdAt: '2026-09-21T08:45:00Z',
     },
@@ -702,7 +721,8 @@ export function initialPlatformTickets(): PlatformTicket[] {
       category: 'INFRASTRUCTURE',
       priority: 'MEDIUM',
       status: 'OPEN',
-      description: 'Scheduled night audit PDF folio summaries are returning SMTP socket connection timeout.',
+      description:
+        'Scheduled night audit PDF folio summaries are returning SMTP socket connection timeout.',
       resolutionNotes: '',
       createdAt: '2026-09-19T23:30:00Z',
     },
@@ -716,8 +736,10 @@ export function initialPlatformTickets(): PlatformTicket[] {
       category: 'SYSTEM',
       priority: 'LOW',
       status: 'RESOLVED',
-      description: 'Staff mobile client showed UTC timestamps instead of resort property timezone (IST).',
-      resolutionNotes: 'Patched client-side timezone formatter to bind to tenant property policies. Verified by resort staff.',
+      description:
+        'Staff mobile client showed UTC timestamps instead of resort property timezone (IST).',
+      resolutionNotes:
+        'Patched client-side timezone formatter to bind to tenant property policies. Verified by resort staff.',
       createdAt: '2026-09-18T14:20:00Z',
     },
     {
@@ -730,8 +752,10 @@ export function initialPlatformTickets(): PlatformTicket[] {
       category: 'SECURITY',
       priority: 'CRITICAL',
       status: 'RESOLVED',
-      description: 'Rate-limiter triggered lock after 50 invalid password attempts on owner account within 2 minutes.',
-      resolutionNotes: 'CIDR subnet banned at ingress firewall. Owner credentials rotated and MFA verification passed.',
+      description:
+        'Rate-limiter triggered lock after 50 invalid password attempts on owner account within 2 minutes.',
+      resolutionNotes:
+        'CIDR subnet banned at ingress firewall. Owner credentials rotated and MFA verification passed.',
       createdAt: '2026-09-17T03:12:00Z',
     },
   ];
@@ -2211,7 +2235,9 @@ export function applyCommand(previous: State, actorId: string, command: Command)
       const code = clean(p.code, 'Resort code').toUpperCase();
       const name = clean(p.name, 'Resort name');
       const ownerName = clean(p.ownerName, 'Owner name');
-      const ownerEmail = clean(p.ownerEmail, 'Owner email').toLowerCase();
+      const email = clean(p.resortEmail || p.ownerEmail, 'Resort email').toLowerCase();
+      const resortEmail = email;
+      const ownerEmail = clean(p.ownerEmail || p.resortEmail, 'Owner email').toLowerCase();
       const password = p.password?.trim() || 'Resort@123';
       assert(!s.tenants?.some((t) => t.code === code), 'A resort with this code already exists.');
       assert(
@@ -2241,6 +2267,7 @@ export function applyCommand(previous: State, actorId: string, command: Command)
         ownerId: newOwnerId,
         ownerName,
         ownerEmail,
+        resortEmail,
         roomsCount: Number(p.roomsCount) || 24,
       };
       s.tenants = [newTenant, ...(s.tenants ?? [])];
@@ -2268,6 +2295,7 @@ export function applyCommand(previous: State, actorId: string, command: Command)
       if (p.tier) t.tier = p.tier;
       if (p.location) t.location = p.location;
       if (p.roomsCount !== undefined) t.roomsCount = Number(p.roomsCount);
+      if (p.resortEmail) t.resortEmail = String(p.resortEmail).trim().toLowerCase();
       s.platformAudit = [
         {
           id: `PA-${Date.now()}`,
@@ -2295,9 +2323,7 @@ export function applyCommand(previous: State, actorId: string, command: Command)
       if (p.email && p.email.toLowerCase() !== target.email.toLowerCase()) {
         const nextEmail = String(p.email).toLowerCase().trim();
         assert(
-          !s.accounts.some(
-            (acc) => acc.id !== target.id && acc.email.toLowerCase() === nextEmail,
-          ),
+          !s.accounts.some((acc) => acc.id !== target.id && acc.email.toLowerCase() === nextEmail),
           'Email already in use.',
         );
         target.email = nextEmail;
@@ -2472,12 +2498,13 @@ export function applyCommand(previous: State, actorId: string, command: Command)
         'Unauthorized to create support tickets.',
       );
 
-      const code = a.module === 'Owner' ? (a.tenantId || 'PALM') : (p.tenantCode || 'PALM');
+      const code = a.module === 'Owner' ? a.tenantId || 'PALM' : p.tenantCode || 'PALM';
       const t = s.tenants?.find((x) => x.code === code);
       const resortName =
-        t?.name || (code === 'PALM' ? (s.policies.resortName || 'The Palm Luxury Resort') : `${code} Resort`);
-      const ownerName = a.module === 'Owner' ? a.name : (t?.ownerName || 'Resort Owner');
-      const ownerEmail = a.module === 'Owner' ? a.email : (t?.ownerEmail || 'owner@rrms.demo');
+        t?.name ||
+        (code === 'PALM' ? s.policies.resortName || 'The Palm Luxury Resort' : `${code} Resort`);
+      const ownerName = a.module === 'Owner' ? a.name : t?.ownerName || 'Resort Owner';
+      const ownerEmail = a.module === 'Owner' ? a.email : t?.ownerEmail || 'owner@rrms.demo';
       const creatorId = a.id;
 
       // Automatically assign to Super Admin
@@ -2495,9 +2522,9 @@ export function applyCommand(previous: State, actorId: string, command: Command)
       }
 
       // Validate priority
-      const priority = (['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(p.priority)
-        ? p.priority
-        : 'MEDIUM') as 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+      const priority = (
+        ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(p.priority) ? p.priority : 'MEDIUM'
+      ) as 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
       // Validate attachments
       const attachments: TicketAttachment[] = Array.isArray(p.attachments)

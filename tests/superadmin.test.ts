@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  seed,
-  applyCommand,
-  can,
-  type State,
-} from '../src/lib/domain';
+import { seed, applyCommand, can, type State } from '../src/lib/domain';
 
 let s: State;
 
@@ -91,6 +86,48 @@ describe('Super Admin Domain & Role Boundaries', () => {
     // Platform audit entry verified
     const auditEntry = s.platformAudit?.find(
       (a) => a.action === 'TENANT_PROVISIONED' && a.tenantCode === 'SUNSET',
+    );
+    expect(auditEntry).toBeDefined();
+  });
+
+  it('provisions tenant and owner account with resortEmail in payload', () => {
+    const admin = s.accounts.find((a) => a.module === 'SuperAdmin')!;
+    const previousTenantCount = s.tenants?.length ?? 0;
+    const previousAccountCount = s.accounts.length;
+
+    s = applyCommand(s, admin.id, {
+      type: 'superadmin.tenant.create',
+      payload: {
+        code: 'MIRAGE',
+        name: 'The Mirage Oasis',
+        ownerName: 'Devika Singhal',
+        resortEmail: 'concierge@mirage.demo',
+        password: 'Mirage@123',
+        tier: 'Premium',
+        location: 'Udaipur, Rajasthan · India',
+        roomsCount: 40,
+      },
+    });
+
+    expect(s.tenants?.length).toBe(previousTenantCount + 1);
+    expect(s.accounts.length).toBe(previousAccountCount + 1);
+
+    const createdTenant = s.tenants?.find((t) => t.code === 'MIRAGE');
+    expect(createdTenant).toBeDefined();
+    expect(createdTenant?.name).toBe('The Mirage Oasis');
+    expect(createdTenant?.resortEmail).toBe('concierge@mirage.demo');
+    expect(createdTenant?.ownerEmail).toBe('concierge@mirage.demo');
+    expect(createdTenant?.status).toBe('Active');
+
+    const createdOwner = s.accounts.find((a) => a.email === 'concierge@mirage.demo');
+    expect(createdOwner).toBeDefined();
+    expect(createdOwner?.name).toBe('Devika Singhal');
+    expect(createdOwner?.module).toBe('Owner');
+    expect(createdOwner?.tenantId).toBe('MIRAGE');
+
+    // Platform audit entry verified
+    const auditEntry = s.platformAudit?.find(
+      (a) => a.action === 'TENANT_PROVISIONED' && a.tenantCode === 'MIRAGE',
     );
     expect(auditEntry).toBeDefined();
   });

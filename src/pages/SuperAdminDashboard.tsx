@@ -46,6 +46,7 @@ import {
   today,
   dateOffset,
   type Tenant,
+  type TenantStatusType,
   type PlatformTicket,
   type TicketAttachment,
   type PlatformConfig,
@@ -99,7 +100,7 @@ export default function SuperAdminDashboard() {
   const [tenantName, setTenantName] = useState('');
   const [tenantCode, setTenantCode] = useState('');
   const [ownerName, setOwnerName] = useState('');
-  const [ownerEmail, setOwnerEmail] = useState('');
+  const [resortEmail, setResortEmail] = useState('');
   const [ownerPassword, setOwnerPassword] = useState('Resort@123');
   const [tenantTier, setTenantTier] = useState('Enterprise');
   const [tenantLocation, setTenantLocation] = useState('Candolim, Goa · India');
@@ -110,7 +111,8 @@ export default function SuperAdminDashboard() {
     resortName: string;
     tenantCode: string;
     ownerName: string;
-    ownerEmail: string;
+    resortEmail: string;
+    ownerEmail?: string;
     tempPassword: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -118,7 +120,7 @@ export default function SuperAdminDashboard() {
   // Edit Tenant Modal
   const [editTenant, setEditTenant] = useState<Tenant | null>(null);
   const [editTenantName, setEditTenantName] = useState('');
-  const [editTenantStatus, setEditTenantStatus] = useState<'Active' | 'Suspended' | 'Pending'>('Active');
+  const [editTenantStatus, setEditTenantStatus] = useState<TenantStatusType>('Active');
   const [editTenantTier, setEditTenantTier] = useState('Enterprise');
   const [editTenantLocation, setEditTenantLocation] = useState('');
   const [editTenantRooms, setEditTenantRooms] = useState(24);
@@ -132,8 +134,12 @@ export default function SuperAdminDashboard() {
 
   // Support Ticket Resolution Modal
   const [selectedTicket, setSelectedTicket] = useState<PlatformTicket | null>(null);
-  const [ticketStatus, setTicketStatus] = useState<'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED'>('IN_PROGRESS');
-  const [ticketPriority, setTicketPriority] = useState<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'>('HIGH');
+  const [ticketStatus, setTicketStatus] = useState<'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED'>(
+    'IN_PROGRESS',
+  );
+  const [ticketPriority, setTicketPriority] = useState<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'>(
+    'HIGH',
+  );
   const [ticketResolution, setTicketResolution] = useState('');
   const [adminReply, setAdminReply] = useState('');
   const [adminReplyAttachments, setAdminReplyAttachments] = useState<TicketAttachment[]>([]);
@@ -144,7 +150,9 @@ export default function SuperAdminDashboard() {
   const [newTicketTenant, setNewTicketTenant] = useState('PALM');
   const [newTicketTitle, setNewTicketTitle] = useState('');
   const [newTicketCategory, setNewTicketCategory] = useState('Technical Issue');
-  const [newTicketPriority, setNewTicketPriority] = useState<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'>('HIGH');
+  const [newTicketPriority, setNewTicketPriority] = useState<
+    'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+  >('HIGH');
   const [newTicketDescription, setNewTicketDescription] = useState('');
 
   // Filters for tickets
@@ -160,18 +168,20 @@ export default function SuperAdminDashboard() {
   // Calculate stats
   const ownerAccounts = s.accounts.filter((a) => a.module === 'Owner');
   const openTickets = tickets.filter((t) => t.status !== 'RESOLVED' && t.status !== 'CLOSED');
-  const criticalTickets = tickets.filter((t) => t.priority === 'CRITICAL' && t.status !== 'RESOLVED' && t.status !== 'CLOSED');
+  const criticalTickets = tickets.filter(
+    (t) => t.priority === 'CRITICAL' && t.status !== 'RESOLVED' && t.status !== 'CLOSED',
+  );
 
   // Handle Provisioning Tenant & Owner Together
   const handleCreateTenantAndOwner = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tenantCode.trim() || !tenantName.trim() || !ownerName.trim() || !ownerEmail.trim()) {
+    if (!tenantCode.trim() || !tenantName.trim() || !ownerName.trim() || !resortEmail.trim()) {
       toast.error('Please fill in all required fields.');
       return;
     }
 
     const cleanCode = tenantCode.trim().toUpperCase();
-    const cleanEmail = ownerEmail.trim().toLowerCase();
+    const cleanEmail = resortEmail.trim().toLowerCase();
 
     const ok = act(
       {
@@ -180,6 +190,7 @@ export default function SuperAdminDashboard() {
           code: cleanCode,
           name: tenantName.trim(),
           ownerName: ownerName.trim(),
+          resortEmail: cleanEmail,
           ownerEmail: cleanEmail,
           password: ownerPassword.trim() || 'Resort@123',
           tier: tenantTier,
@@ -195,6 +206,7 @@ export default function SuperAdminDashboard() {
         resortName: tenantName.trim(),
         tenantCode: cleanCode,
         ownerName: ownerName.trim(),
+        resortEmail: cleanEmail,
         ownerEmail: cleanEmail,
         tempPassword: ownerPassword.trim() || 'Resort@123',
       });
@@ -203,7 +215,7 @@ export default function SuperAdminDashboard() {
       setTenantName('');
       setTenantCode('');
       setOwnerName('');
-      setOwnerEmail('');
+      setResortEmail('');
       setOwnerPassword('Resort@123');
     }
   };
@@ -488,11 +500,9 @@ export default function SuperAdminDashboard() {
         {/* Dynamic Contextual Header */}
         {renderHeader()}
 
-
         {/* TAB 1: OVERVIEW */}
         {currentTab === 'overview' && (
           <div className="space-y-6">
-
             {/* Global KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="p-4 border-l-4 border-l-[#1F3A2E]">
@@ -507,7 +517,8 @@ export default function SuperAdminDashboard() {
                   </span>
                 </div>
                 <div className="text-[11px] text-[#6B7160] mt-1 flex items-center gap-1">
-                  <span className="text-emerald-700 font-semibold font-mono">Isolated Shards</span> · Dedicated tenant schemas
+                  <span className="text-emerald-700 font-semibold font-mono">Isolated Shards</span>{' '}
+                  · Dedicated tenant schemas
                 </div>
               </Card>
 
@@ -668,7 +679,9 @@ export default function SuperAdminDashboard() {
                   <Button
                     size="sm"
                     variant={config.maintenanceMode ? 'destructive' : 'outline'}
-                    onClick={() => act({ type: 'superadmin.maintenance.toggle' }, 'Maintenance mode updated')}
+                    onClick={() =>
+                      act({ type: 'superadmin.maintenance.toggle' }, 'Maintenance mode updated')
+                    }
                   >
                     {config.maintenanceMode ? 'Enabled' : 'Disabled'}
                   </Button>
@@ -676,7 +689,9 @@ export default function SuperAdminDashboard() {
 
                 <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E9DFCE] flex items-center justify-between">
                   <div>
-                    <strong className="block text-[#1F3A2E] font-semibold">Tenant Self-Registration</strong>
+                    <strong className="block text-[#1F3A2E] font-semibold">
+                      Tenant Self-Registration
+                    </strong>
                     <span className="text-[#6B7160]">
                       {config.registrationOpen ? 'Open to public' : 'Disabled (Invite only)'}
                     </span>
@@ -686,8 +701,12 @@ export default function SuperAdminDashboard() {
 
                 <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E9DFCE] flex items-center justify-between">
                   <div>
-                    <strong className="block text-[#1F3A2E] font-semibold">Max Tenants Capacity</strong>
-                    <span className="text-[#6B7160]">{tenants.length} of {config.maxTenants} allocated</span>
+                    <strong className="block text-[#1F3A2E] font-semibold">
+                      Max Tenants Capacity
+                    </strong>
+                    <span className="text-[#6B7160]">
+                      {tenants.length} of {config.maxTenants} allocated
+                    </span>
                   </div>
                   <span className="font-mono font-bold text-sm text-[#1F3A2E]">
                     {Math.round((tenants.length / config.maxTenants) * 100)}%
@@ -710,7 +729,9 @@ export default function SuperAdminDashboard() {
               <div className="mt-4">
                 <DataTable
                   rows={tenants}
-                  searchBy={(t) => `${t.name} ${t.code} ${t.ownerName} ${t.ownerEmail} ${t.location}`}
+                  searchBy={(t) =>
+                    `${t.name} ${t.code} ${t.ownerName} ${t.resortEmail ?? ''} ${t.ownerEmail} ${t.location}`
+                  }
                   placeholder="Search resorts by name, tenant code, owner, or location..."
                   columns={[
                     {
@@ -730,7 +751,9 @@ export default function SuperAdminDashboard() {
                       render: (t) => (
                         <div>
                           <strong className="text-xs text-[#1F3A2E]">{t.name}</strong>
-                          <div className="text-[11px] text-[#6B7160]">{t.location || 'Candolim, Goa'}</div>
+                          <div className="text-[11px] text-[#6B7160]">
+                            {t.location || 'Candolim, Goa'}
+                          </div>
                         </div>
                       ),
                     },
@@ -739,7 +762,9 @@ export default function SuperAdminDashboard() {
                       label: 'Primary Owner',
                       render: (t) => (
                         <div>
-                          <span className="text-xs font-semibold text-[#1F3A2E]">{t.ownerName}</span>
+                          <span className="text-xs font-semibold text-[#1F3A2E]">
+                            {t.ownerName}
+                          </span>
                           <div className="font-mono text-[11px] text-[#6B7160]">{t.ownerEmail}</div>
                         </div>
                       ),
@@ -827,7 +852,9 @@ export default function SuperAdminDashboard() {
                       key: 'email',
                       label: 'Login Email',
                       sort: (a) => a.email,
-                      render: (a) => <span className="font-mono text-xs text-[#1F3A2E]">{a.email}</span>,
+                      render: (a) => (
+                        <span className="font-mono text-xs text-[#1F3A2E]">{a.email}</span>
+                      ),
                     },
                     {
                       key: 'tenant',
@@ -847,9 +874,7 @@ export default function SuperAdminDashboard() {
                       key: 'password',
                       label: 'Demo Password',
                       render: (a) => (
-                        <span className="font-mono text-xs text-[#C9A227]">
-                          {a.password}
-                        </span>
+                        <span className="font-mono text-xs text-[#C9A227]">{a.password}</span>
                       ),
                     },
                     {
@@ -966,7 +991,9 @@ export default function SuperAdminDashboard() {
                           <span className="text-xs font-mono font-bold text-[#1F3A2E]">
                             [{ticket.tenantCode}] {ticket.resortName}
                           </span>
-                          <span className="text-xs text-[#6B7160]">· Category: {ticket.category}</span>
+                          <span className="text-xs text-[#6B7160]">
+                            · Category: {ticket.category}
+                          </span>
                         </div>
                         <h3 className="font-serif font-bold text-sm text-[#1F3A2E]">
                           {ticket.title}
@@ -977,7 +1004,10 @@ export default function SuperAdminDashboard() {
                           </span>
                           <span>·</span>
                           <span>
-                            Assigned to: <strong className="text-[#1F3A2E]">{ticket.assigneeName || 'Platform Administrator'}</strong>
+                            Assigned to:{' '}
+                            <strong className="text-[#1F3A2E]">
+                              {ticket.assigneeName || 'Platform Administrator'}
+                            </strong>
                           </span>
                           <span>·</span>
                           <span>{new Date(ticket.createdAt).toLocaleString()}</span>
@@ -1046,7 +1076,10 @@ export default function SuperAdminDashboard() {
                     {ticket.replies && ticket.replies.length > 0 && (
                       <div className="flex items-center gap-1.5 text-xs text-[#1F3A2E] bg-amber-50/70 border border-amber-200/60 px-3 py-1.5 rounded-lg">
                         <MessageSquare size={13} className="text-[#C9A227]" />
-                        <span className="font-semibold">{ticket.replies.length} {ticket.replies.length === 1 ? 'reply' : 'replies'} exchanged</span>
+                        <span className="font-semibold">
+                          {ticket.replies.length}{' '}
+                          {ticket.replies.length === 1 ? 'reply' : 'replies'} exchanged
+                        </span>
                         <span className="text-[#6B7160] text-[11px]">
                           (Latest from {ticket.replies[ticket.replies.length - 1].senderName})
                         </span>
@@ -1138,9 +1171,12 @@ export default function SuperAdminDashboard() {
                         className="rounded"
                       />
                       <div>
-                        <span className="font-semibold text-[#1F3A2E] block">Public Self-Registration</span>
+                        <span className="font-semibold text-[#1F3A2E] block">
+                          Public Self-Registration
+                        </span>
                         <span className="text-[#6B7160]">
-                          Allow self-provisioning. Keep disabled to maintain strict identity hierarchy.
+                          Allow self-provisioning. Keep disabled to maintain strict identity
+                          hierarchy.
                         </span>
                       </div>
                     </label>
@@ -1155,7 +1191,9 @@ export default function SuperAdminDashboard() {
                         className="rounded"
                       />
                       <div>
-                        <span className="font-semibold text-[#1F3A2E] block">Enforce Multi-Factor Auth (MFA)</span>
+                        <span className="font-semibold text-[#1F3A2E] block">
+                          Enforce Multi-Factor Auth (MFA)
+                        </span>
                         <span className="text-[#6B7160]">
                           Require MFA token for all Owner and Manager sign-in sessions.
                         </span>
@@ -1182,7 +1220,9 @@ export default function SuperAdminDashboard() {
                     </label>
 
                     <label className="block space-y-1">
-                      <span className="font-semibold text-[#1F3A2E]">Session Inactivity Timeout (Minutes)</span>
+                      <span className="font-semibold text-[#1F3A2E]">
+                        Session Inactivity Timeout (Minutes)
+                      </span>
                       <input
                         type="number"
                         min="15"
@@ -1199,7 +1239,9 @@ export default function SuperAdminDashboard() {
                     </label>
 
                     <label className="block space-y-1">
-                      <span className="font-semibold text-[#1F3A2E]">Audit Trail Retention (Days)</span>
+                      <span className="font-semibold text-[#1F3A2E]">
+                        Audit Trail Retention (Days)
+                      </span>
                       <input
                         type="number"
                         min="30"
@@ -1219,7 +1261,9 @@ export default function SuperAdminDashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="block space-y-1">
-                    <span className="font-semibold text-[#1F3A2E]">Distributed Database Backup Schedule</span>
+                    <span className="font-semibold text-[#1F3A2E]">
+                      Distributed Database Backup Schedule
+                    </span>
                     <input
                       type="text"
                       value={configState.backupSchedule}
@@ -1244,11 +1288,7 @@ export default function SuperAdminDashboard() {
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-[#F0EBE1]">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setConfigState(config)}
-                  >
+                  <Button type="button" variant="outline" onClick={() => setConfigState(config)}>
                     Reset Defaults
                   </Button>
                   <Button type="submit" className="bg-[#1F3A2E] hover:bg-[#2A4D3E] text-white">
@@ -1397,9 +1437,7 @@ export default function SuperAdminDashboard() {
                     JVM RUNTIME HEAP ALLOCATION
                   </span>
                   <div className="flex items-baseline justify-between">
-                    <span className="text-2xl font-serif font-bold text-[#1F3A2E]">
-                      142 MB
-                    </span>
+                    <span className="text-2xl font-serif font-bold text-[#1F3A2E]">142 MB</span>
                     <span className="text-xs font-mono font-semibold text-[#6B7160]">
                       Max: 512 MB
                     </span>
@@ -1419,15 +1457,15 @@ export default function SuperAdminDashboard() {
                   <span className="text-xs font-semibold text-[#6B7160] block">
                     CLUSTER UPTIME & CONCURRENCY
                   </span>
-                  <div className="text-2xl font-serif font-bold text-[#1F3A2E]">
-                    18d 06h 44m
-                  </div>
+                  <div className="text-2xl font-serif font-bold text-[#1F3A2E]">18d 06h 44m</div>
                   <div className="text-xs text-[#6B7160] space-y-0.5">
                     <div>
-                      Active Virtual Threads: <strong className="font-mono text-[#1F3A2E]">32 threads</strong>
+                      Active Virtual Threads:{' '}
+                      <strong className="font-mono text-[#1F3A2E]">32 threads</strong>
                     </div>
                     <div>
-                      Available CPU Cores: <strong className="font-mono text-[#1F3A2E]">8 cores</strong>
+                      Available CPU Cores:{' '}
+                      <strong className="font-mono text-[#1F3A2E]">8 cores</strong>
                     </div>
                   </div>
                 </div>
@@ -1441,10 +1479,12 @@ export default function SuperAdminDashboard() {
                     CONNECTED
                   </div>
                   <div className="text-xs text-[#6B7160]">
-                    HikariPool Status: <strong className="text-emerald-700">Healthy (0 waiting)</strong>
+                    HikariPool Status:{' '}
+                    <strong className="text-emerald-700">Healthy (0 waiting)</strong>
                   </div>
                   <div className="text-[11px] text-[#6B7160]">
-                    Total Audit Records: <strong className="font-mono text-[#1F3A2E]">{auditLogs.length}</strong>
+                    Total Audit Records:{' '}
+                    <strong className="font-mono text-[#1F3A2E]">{auditLogs.length}</strong>
                   </div>
                 </div>
               </div>
@@ -1456,15 +1496,36 @@ export default function SuperAdminDashboard() {
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   {[
-                    { role: 'SUPER_ADMIN', label: 'Super Admins', count: s.accounts.filter((a) => a.module === 'SuperAdmin').length },
+                    {
+                      role: 'SUPER_ADMIN',
+                      label: 'Super Admins',
+                      count: s.accounts.filter((a) => a.module === 'SuperAdmin').length,
+                    },
                     { role: 'OWNER', label: 'Resort Owners', count: ownerAccounts.length },
-                    { role: 'MANAGEMENT', label: 'Managers', count: s.accounts.filter((a) => a.module === 'Management').length },
-                    { role: 'STAFF', label: 'Resort Staff', count: s.accounts.filter((a) => a.module === 'Staff').length },
-                    { role: 'GUEST', label: 'Guests', count: s.accounts.filter((a) => a.module === 'Guest').length },
+                    {
+                      role: 'MANAGEMENT',
+                      label: 'Managers',
+                      count: s.accounts.filter((a) => a.module === 'Management').length,
+                    },
+                    {
+                      role: 'STAFF',
+                      label: 'Resort Staff',
+                      count: s.accounts.filter((a) => a.module === 'Staff').length,
+                    },
+                    {
+                      role: 'GUEST',
+                      label: 'Guests',
+                      count: s.accounts.filter((a) => a.module === 'Guest').length,
+                    },
                   ].map((item) => (
-                    <div key={item.role} className="p-3 bg-[#FAF7F2] rounded-lg border border-[#F0EBE1] text-center">
+                    <div
+                      key={item.role}
+                      className="p-3 bg-[#FAF7F2] rounded-lg border border-[#F0EBE1] text-center"
+                    >
                       <span className="text-[11px] text-[#6B7160] block">{item.label}</span>
-                      <span className="text-xl font-bold font-mono text-[#1F3A2E]">{item.count}</span>
+                      <span className="text-xl font-bold font-mono text-[#1F3A2E]">
+                        {item.count}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1505,8 +1566,15 @@ export default function SuperAdminDashboard() {
                           const val = e.target.value;
                           setTenantName(val);
                           // Auto suggest tenant code if not manually set
-                          if (!tenantCode || tenantCode === tenantName.split(' ')[0]?.toUpperCase()) {
-                            const suggested = val.split(' ')[0]?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10);
+                          if (
+                            !tenantCode ||
+                            tenantCode === tenantName.split(' ')[0]?.toUpperCase()
+                          ) {
+                            const suggested = val
+                              .split(' ')[0]
+                              ?.replace(/[^a-zA-Z0-9]/g, '')
+                              .toUpperCase()
+                              .slice(0, 10);
                             if (suggested) setTenantCode(suggested);
                           }
                         }}
@@ -1515,13 +1583,19 @@ export default function SuperAdminDashboard() {
                         className="w-full bg-transparent text-xs placeholder:text-[#6B7160]/50"
                       />
                     </div>
-                    <span className="text-[11px] text-[#6B7160] mt-1 block">Full legal or branded name of the resort property.</span>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">
+                      Full legal or branded name of the resort property.
+                    </span>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5 flex items-center justify-between">
-                      <span>Resort / Tenant Code <span className="text-red-500">*</span></span>
-                      <span className="font-mono text-[10px] text-[#6B7160] font-normal uppercase">SHARD IDENTIFIER</span>
+                      <span>
+                        Resort / Tenant Code <span className="text-red-500">*</span>
+                      </span>
+                      <span className="font-mono text-[10px] text-[#6B7160] font-normal uppercase">
+                        SHARD IDENTIFIER
+                      </span>
                     </label>
                     <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-[#E9DFCE] focus-within:border-[#C9A227] focus-within:ring-2 focus-within:ring-[#C9A227]/20 rounded-xl transition-all">
                       <KeyRound size={16} className="text-[#6B7160] shrink-0" />
@@ -1529,13 +1603,17 @@ export default function SuperAdminDashboard() {
                         type="text"
                         required
                         value={tenantCode}
-                        onChange={(e) => setTenantCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''))}
+                        onChange={(e) =>
+                          setTenantCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''))
+                        }
                         placeholder="e.g. SAPPHIRE"
                         style={{ border: 'none', outline: 'none', padding: 0, boxShadow: 'none' }}
                         className="w-full bg-transparent text-xs font-mono uppercase tracking-wider font-bold placeholder:text-[#6B7160]/50"
                       />
                     </div>
-                    <span className="text-[11px] text-[#6B7160] mt-1 block">Unique alphanumeric shard key used for URL routing and tenant data isolation.</span>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">
+                      Unique alphanumeric shard key used for URL routing and tenant data isolation.
+                    </span>
                   </div>
                 </div>
 
@@ -1556,7 +1634,9 @@ export default function SuperAdminDashboard() {
                         className="w-full bg-transparent text-xs placeholder:text-[#6B7160]/50"
                       />
                     </div>
-                    <span className="text-[11px] text-[#6B7160] mt-1 block">Geographic destination and physical address.</span>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">
+                      Geographic destination and physical address.
+                    </span>
                   </div>
 
                   <div>
@@ -1575,7 +1655,9 @@ export default function SuperAdminDashboard() {
                         className="w-full bg-transparent text-xs"
                       />
                     </div>
-                    <span className="text-[11px] text-[#6B7160] mt-1 block">Baseline physical keys provisioned into property management inventory.</span>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">
+                      Baseline physical keys provisioned into property management inventory.
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1604,26 +1686,30 @@ export default function SuperAdminDashboard() {
                         className="w-full bg-transparent text-xs placeholder:text-[#6B7160]/50"
                       />
                     </div>
-                    <span className="text-[11px] text-[#6B7160] mt-1 block">Full legal name of the resort proprietor or principal.</span>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">
+                      Full legal name of the resort proprietor or principal.
+                    </span>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-[#1F3A2E] mb-1.5">
-                      Owner Email Address (Login ID) <span className="text-red-500">*</span>
+                      Resort Email Address <span className="text-red-500">*</span>
                     </label>
                     <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-[#E9DFCE] focus-within:border-[#C9A227] focus-within:ring-2 focus-within:ring-[#C9A227]/20 rounded-xl transition-all">
                       <Mail size={16} className="text-[#6B7160] shrink-0" />
                       <input
                         type="email"
                         required
-                        value={ownerEmail}
-                        onChange={(e) => setOwnerEmail(e.target.value)}
-                        placeholder="e.g. owner@sapphire.demo"
+                        value={resortEmail}
+                        onChange={(e) => setResortEmail(e.target.value)}
+                        placeholder="e.g. contact@sapphire.demo"
                         style={{ border: 'none', outline: 'none', padding: 0, boxShadow: 'none' }}
                         className="w-full bg-transparent text-xs placeholder:text-[#6B7160]/50"
                       />
                     </div>
-                    <span className="text-[11px] text-[#6B7160] mt-1 block">Used by the Owner to access their management portal.</span>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">
+                      Primary administrative and operational contact email for the resort.
+                    </span>
                   </div>
                 </div>
 
@@ -1652,7 +1738,9 @@ export default function SuperAdminDashboard() {
                         {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
                     </div>
-                    <span className="text-[11px] text-[#6B7160] mt-1 block">Initial administrative credential for tenant onboarding.</span>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">
+                      Initial administrative credential for tenant onboarding.
+                    </span>
                   </div>
 
                   <div>
@@ -1667,12 +1755,18 @@ export default function SuperAdminDashboard() {
                         style={{ border: 'none', outline: 'none', padding: 0, boxShadow: 'none' }}
                         className="w-full bg-transparent text-xs cursor-pointer"
                       >
-                        <option value="Enterprise">Enterprise (Dedicated Shard · 99.99% SLA · Full Modules)</option>
-                        <option value="Premium">Premium (Enhanced Analytics · Priority Escalations)</option>
+                        <option value="Enterprise">
+                          Enterprise (Dedicated Shard · 99.99% SLA · Full Modules)
+                        </option>
+                        <option value="Premium">
+                          Premium (Enhanced Analytics · Priority Escalations)
+                        </option>
                         <option value="Standard">Standard (Core PMS & Essential Operations)</option>
                       </select>
                     </div>
-                    <span className="text-[11px] text-[#6B7160] mt-1 block">Allocates compute quotas and platform SLA boundaries.</span>
+                    <span className="text-[11px] text-[#6B7160] mt-1 block">
+                      Allocates compute quotas and platform SLA boundaries.
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1688,7 +1782,10 @@ export default function SuperAdminDashboard() {
                 <Button type="button" variant="outline" onClick={() => setCreateTenantModal(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-[#C9A227] hover:bg-[#B38F1E] text-white flex items-center gap-1.5 shadow-sm font-semibold">
+                <Button
+                  type="submit"
+                  className="bg-[#C9A227] hover:bg-[#B38F1E] text-white flex items-center gap-1.5 shadow-sm font-semibold"
+                >
                   <Plus size={15} />
                   Provision Resort & Owner
                 </Button>
@@ -1715,7 +1812,8 @@ export default function SuperAdminDashboard() {
                       Resort Property & Owner Account Created
                     </div>
                     <p className="text-xs text-emerald-800 leading-relaxed mt-0.5">
-                      Provide these credentials to the resort Owner. They can sign in directly to their dedicated management dashboard using the existing sign-in portal.
+                      Provide these credentials to the resort Owner. They can sign in directly to
+                      their dedicated management dashboard using the existing sign-in portal.
                     </p>
                   </div>
                 </div>
@@ -1723,7 +1821,9 @@ export default function SuperAdminDashboard() {
                 <div className="p-4 bg-[#FAF7F2] border border-[#E9DFCE] rounded-xl space-y-2.5 font-mono text-xs">
                   <div className="flex justify-between items-center border-b border-[#F0EBE1] pb-2">
                     <span className="text-[#6B7160] font-sans font-medium">Resort Name:</span>
-                    <span className="font-bold text-[#1F3A2E] font-sans text-sm">{createdCredentials.resortName}</span>
+                    <span className="font-bold text-[#1F3A2E] font-sans text-sm">
+                      {createdCredentials.resortName}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center border-b border-[#F0EBE1] pb-2">
                     <span className="text-[#6B7160] font-sans font-medium">Tenant Shard Code:</span>
@@ -1733,14 +1833,22 @@ export default function SuperAdminDashboard() {
                   </div>
                   <div className="flex justify-between items-center border-b border-[#F0EBE1] pb-2">
                     <span className="text-[#6B7160] font-sans font-medium">Primary Owner:</span>
-                    <span className="font-bold text-[#1F3A2E] font-sans">{createdCredentials.ownerName}</span>
+                    <span className="font-bold text-[#1F3A2E] font-sans">
+                      {createdCredentials.ownerName}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center border-b border-[#F0EBE1] pb-2">
-                    <span className="text-[#6B7160] font-sans font-medium">Login Email:</span>
-                    <span className="font-bold text-[#1F3A2E]">{createdCredentials.ownerEmail}</span>
+                    <span className="text-[#6B7160] font-sans font-medium">
+                      Resort / Login Email:
+                    </span>
+                    <span className="font-bold text-[#1F3A2E]">
+                      {createdCredentials.resortEmail || createdCredentials.ownerEmail}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-[#E9DFCE]">
-                    <span className="text-[#6B7160] font-sans font-medium">Temporary Password:</span>
+                    <span className="text-[#6B7160] font-sans font-medium">
+                      Temporary Password:
+                    </span>
                     <span className="font-bold text-amber-800 tracking-wider font-mono text-sm">
                       {createdCredentials.tempPassword}
                     </span>
@@ -1758,7 +1866,7 @@ export default function SuperAdminDashboard() {
                     variant="outline"
                     onClick={() =>
                       copyToClipboard(
-                        `Resort: ${createdCredentials.resortName}\nCode: ${createdCredentials.tenantCode}\nEmail: ${createdCredentials.ownerEmail}\nPassword: ${createdCredentials.tempPassword}`,
+                        `Resort: ${createdCredentials.resortName}\nCode: ${createdCredentials.tenantCode}\nEmail: ${createdCredentials.resortEmail || createdCredentials.ownerEmail}\nPassword: ${createdCredentials.tempPassword}`,
                       )
                     }
                     className="flex items-center gap-1.5"
@@ -1785,7 +1893,9 @@ export default function SuperAdminDashboard() {
             <form onSubmit={handleUpdateTenant} className="flex flex-col flex-1 min-h-0">
               <div className="dialog-body space-y-4">
                 <label className="field block">
-                  <span className="text-xs font-semibold text-[#1F3A2E]">Resort Property Name *</span>
+                  <span className="text-xs font-semibold text-[#1F3A2E]">
+                    Resort Property Name *
+                  </span>
                   <input
                     type="text"
                     required
@@ -1890,7 +2000,9 @@ export default function SuperAdminDashboard() {
                 </label>
 
                 <label className="field block">
-                  <span className="text-xs font-semibold text-[#1F3A2E]">Password / Reset Password *</span>
+                  <span className="text-xs font-semibold text-[#1F3A2E]">
+                    Password / Reset Password *
+                  </span>
                   <input
                     type="text"
                     required
@@ -1904,7 +2016,9 @@ export default function SuperAdminDashboard() {
                   <div>
                     <strong className="text-xs text-[#1F3A2E] block">Account Status</strong>
                     <span className="text-[11px] text-[#6B7160]">
-                      {editOwnerActive ? 'Owner can sign in normally.' : 'Account suspended from login.'}
+                      {editOwnerActive
+                        ? 'Owner can sign in normally.'
+                        : 'Account suspended from login.'}
                     </span>
                   </div>
                   <Button
@@ -1978,7 +2092,9 @@ export default function SuperAdminDashboard() {
                       {new Date(selectedTicket.createdAt).toLocaleString()}
                     </span>
                   </div>
-                  <p className="text-[#22261F] leading-relaxed whitespace-pre-line">{selectedTicket.description}</p>
+                  <p className="text-[#22261F] leading-relaxed whitespace-pre-line">
+                    {selectedTicket.description}
+                  </p>
                 </div>
 
                 {/* Attachments from Owner */}
@@ -2055,7 +2171,9 @@ export default function SuperAdminDashboard() {
                               {new Date(reply.timestamp).toLocaleString()}
                             </span>
                           </div>
-                          <p className="text-[#22261F] leading-relaxed whitespace-pre-line">{reply.message}</p>
+                          <p className="text-[#22261F] leading-relaxed whitespace-pre-line">
+                            {reply.message}
+                          </p>
                           {reply.attachments && reply.attachments.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 pt-1">
                               {reply.attachments.map((att) => (
@@ -2117,9 +2235,15 @@ export default function SuperAdminDashboard() {
                     <div className="text-[11px] space-y-1 text-[#6B7160] max-h-24 overflow-y-auto pl-2 border-l-2 border-[#E9DFCE]">
                       {selectedTicket.history.map((h) => (
                         <div key={h.id} className="flex items-center gap-2">
-                          <span className="font-mono text-[10px]">{new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="font-mono text-[10px]">
+                            {new Date(h.timestamp).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
                           <span>·</span>
-                          <strong className="text-[#1F3A2E]">{h.actorName}</strong>: {h.details || h.action}
+                          <strong className="text-[#1F3A2E]">{h.actorName}</strong>:{' '}
+                          {h.details || h.action}
                         </div>
                       ))}
                     </div>
@@ -2259,7 +2383,9 @@ export default function SuperAdminDashboard() {
               </div>
 
               <label className="field block">
-                <span className="text-xs font-semibold text-[#1F3A2E]">Technical Description *</span>
+                <span className="text-xs font-semibold text-[#1F3A2E]">
+                  Technical Description *
+                </span>
                 <textarea
                   rows={4}
                   required
