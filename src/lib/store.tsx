@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { applyCommand, seed } from './domain';
 import { normalizeState } from './property';
 import type { State, Account, Command, Module, Role } from './domain';
+import { authApi, clearAuthToken } from './api';
 const KEY = 'rrms-palm-v1';
 const SESSION = 'rrms-session-v1';
 function readState(): State {
@@ -117,6 +118,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toast.error('Email or demo password is incorrect.');
       return false;
     }
+    if (account.module === 'SuperAdmin') {
+      authApi.superAdminLogin(email, password).catch(() => {
+        /* backend offline fallback */
+      });
+    }
     return authenticate(account);
   };
   const switchDemo = (module: Module, role?: Role) =>
@@ -133,7 +139,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
   return (
     <StoreContext.Provider
-      value={{ s, actor, act, login, switchDemo, logout: () => setActorId(null), reset }}
+      value={{
+        s,
+        actor,
+        act,
+        login,
+        switchDemo,
+        logout: () => {
+          clearAuthToken();
+          setActorId(null);
+        },
+        reset,
+      }}
     >
       {children}
     </StoreContext.Provider>

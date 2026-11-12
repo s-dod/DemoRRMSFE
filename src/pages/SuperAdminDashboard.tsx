@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Building2,
@@ -41,6 +41,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { superAdminApi } from '../lib/api';
 import { useStore } from '../lib/store';
 import {
   today,
@@ -79,9 +80,139 @@ export default function SuperAdminDashboard() {
     else navigate(`/superadmin/${tab}`);
   };
 
-  const tenants: Tenant[] = s.tenants ?? [];
-  const tickets: PlatformTicket[] = s.platformTickets ?? [];
-  const config: PlatformConfig = s.platformConfig ?? {
+  const [backendConnected, setBackendConnected] = useState<boolean | null>(null);
+  const [liveTenants, setLiveTenants] = useState<Tenant[] | null>(null);
+  const [liveTickets, setLiveTickets] = useState<PlatformTicket[] | null>(null);
+  const [liveConfig, setLiveConfig] = useState<PlatformConfig | null>(null);
+  const [liveAuditLogs, setLiveAuditLogs] = useState<PlatformAuditLog[] | null>(null);
+  const [liveTelemetry, setLiveTelemetry] = useState<any | null>(null);
+  const [liveStats, setLiveStats] = useState<any | null>(null);
+
+  const refreshBackendData = useCallback(async () => {
+    try {
+      const isLive = await superAdminApi.ping();
+      setBackendConnected(isLive);
+      if (!isLive) return;
+
+      const [tenantsRes, ticketsRes, configRes, auditRes, statsRes, telemetryRes] =
+        await Promise.allSettled([
+          superAdminApi.getTenants(),
+          superAdminApi.getTickets(),
+          superAdminApi.getConfig(),
+          superAdminApi.getAuditLogs(),
+          superAdminApi.getOverviewStats(),
+          superAdminApi.getTelemetry(),
+        ]);
+
+      if (
+        tenantsRes.status === 'fulfilled' &&
+        Array.isArray(tenantsRes.value) &&
+        tenantsRes.value.length > 0
+      ) {
+        const mapped: Tenant[] = tenantsRes.value.map((t: any) => ({
+          id: String(t.id),
+          code: t.slug || t.code || 'RES',
+          name: t.resortName || t.name || 'Resort',
+          status: (t.status === 'ACTIVE' || t.status === 'Active'
+            ? 'Active'
+            : t.status === 'SUSPENDED' || t.status === 'Suspended'
+              ? 'Suspended'
+              : 'Pending') as TenantStatusType,
+          tier: t.tier || 'Enterprise',
+          location:
+            t.city && t.state ? `${t.city}, ${t.state} · India` : t.address || 'Candolim, Goa · India',
+          roomsCount: t.roomsCount || 24,
+          ownerName: t.ownerName,
+          ownerEmail: t.ownerEmail,
+          resortEmail: t.ownerEmail,
+          createdAt: t.createdAt ? new Date(t.createdAt).toISOString().split('T')[0] : today(),
+        }));
+        setLiveTenants(mapped);
+      }
+
+      if (
+        ticketsRes.status === 'fulfilled' &&
+        Array.isArray(ticketsRes.value) &&
+        ticketsRes.value.length > 0
+      ) {
+        const mapped: PlatformTicket[] = ticketsRes.value.map((tk: any) => ({
+          id: String(tk.id),
+          tenantCode: tk.tenantCode || 'PALM',
+          resortName: tk.resortName || 'The Palm Luxury Resort',
+          ownerName: tk.ownerName || 'Platform Admin',
+          ownerEmail: tk.ownerEmail || 'admin@rrms.com',
+          title: tk.title,
+          category: tk.category,
+          priority: tk.priority,
+          status: tk.status,
+          description: tk.description,
+          resolutionNotes: tk.resolutionNotes,
+          assigneeName: tk.assigneeName,
+          assigneeId: tk.assigneeId ? String(tk.assigneeId) : undefined,
+          createdAt: tk.createdAt ? new Date(tk.createdAt).toISOString().split('T')[0] : today(),
+          updatedAt: tk.updatedAt ? new Date(tk.updatedAt).toISOString().split('T')[0] : undefined,
+          replies: tk.replies
+            ? tk.replies.map((r: any) => ({
+                id: String(r.id),
+                senderId: String(r.senderId),
+                senderName: r.senderName,
+                senderRole: r.senderRole,
+                message: r.message,
+                timestamp: r.timestamp
+                  ? new Date(r.timestamp).toLocaleString()
+                  : new Date().toLocaleString(),
+              }))
+            : [],
+        }));
+        setLiveTickets(mapped);
+      }
+
+      if (configRes.status === 'fulfilled' && configRes.value) {
+        const c = configRes.value;
+        setLiveConfig({
+          maintenanceMode: !!c.maintenanceMode,
+          registrationOpen: !!c.registrationOpen,
+          maxTenants: c.maxTenants ?? 50,
+          sessionTimeoutMinutes: c.sessionTimeoutMinutes ?? 60,
+          telemetryIntervalSeconds: c.telemetryIntervalSeconds ?? 30,
+          backupSchedule: c.backupSchedule ?? 'Daily @ 02:00 UTC',
+          enforceMfa: !!c.enforceMfa,
+          logRetentionDays: c.logRetentionDays ?? 90,
+          defaultTimezone: c.defaultTimezone ?? 'Asia/Kolkata (IST)',
+        });
+      }
+
+      if (
+        auditRes.status === 'fulfilled' &&
+        Array.isArray(auditRes.value) &&
+        auditRes.value.length > 0
+      ) {
+        const mappedLogs: PlatformAuditLog[] = auditRes.value.map((l: any) => ({
+          id: String(l.id),
+          timestamp: l.timestamp ? new Date(l.timestamp).toLocaleString() : new Date().toLocaleString(),
+          actor: l.actor || 'SUPER_ADMIN',
+          action: l.action,
+          tenantCode: l.tenantCode,
+          severity: l.severity || 'INFO',
+          details: l.details || '',
+        }));
+        setLiveAuditLogs(mappedLogs);
+      }
+
+      if (statsRes.status === 'fulfilled') setLiveStats(statsRes.value);
+      if (telemetryRes.status === 'fulfilled') setLiveTelemetry(telemetryRes.value);
+    } catch {
+      setBackendConnected(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshBackendData();
+  }, [refreshBackendData]);
+
+  const tenants: Tenant[] = liveTenants ?? (s.tenants ?? []);
+  const tickets: PlatformTicket[] = liveTickets ?? (s.platformTickets ?? []);
+  const config: PlatformConfig = liveConfig ?? (s.platformConfig ?? {
     maintenanceMode: false,
     registrationOpen: false,
     maxTenants: 50,
@@ -91,8 +222,8 @@ export default function SuperAdminDashboard() {
     enforceMfa: false,
     logRetentionDays: 90,
     defaultTimezone: 'Asia/Kolkata (IST)',
-  };
-  const auditLogs: PlatformAuditLog[] = s.platformAudit ?? [];
+  });
+  const auditLogs: PlatformAuditLog[] = liveAuditLogs ?? (s.platformAudit ?? []);
 
   // Provisioning Modal State
   const [createTenantModal, setCreateTenantModal] = useState(false);
@@ -211,6 +342,23 @@ export default function SuperAdminDashboard() {
         tempPassword: ownerPassword.trim() || 'Resort@123',
       });
       setCreateTenantModal(false);
+
+      if (backendConnected) {
+        superAdminApi
+          .createTenant({
+            resortName: tenantName.trim(),
+            tenantCode: cleanCode,
+            ownerName: ownerName.trim(),
+            ownerEmail: cleanEmail,
+            ownerPassword: ownerPassword.trim() || 'Resort@123',
+            tier: tenantTier,
+            location: tenantLocation.trim() || 'Candolim, Goa · India',
+            roomsCount: Number(roomsCount) || 24,
+          })
+          .then(() => refreshBackendData())
+          .catch((err) => console.warn('Backend sync note:', err));
+      }
+
       // Reset form
       setTenantName('');
       setTenantCode('');
@@ -241,7 +389,24 @@ export default function SuperAdminDashboard() {
       `Updated details for resort [${editTenant.code}]`,
     );
 
-    if (ok) setEditTenant(null);
+    if (ok) {
+      const tenantId = editTenant.id;
+      setEditTenant(null);
+
+      if (backendConnected && tenantId) {
+        superAdminApi
+          .updateTenant(tenantId, {
+            resortName: editTenantName.trim(),
+            tier: editTenantTier,
+            roomsCount: Number(editTenantRooms),
+          })
+          .then(() =>
+            superAdminApi.updateTenantStatus(tenantId, editTenantStatus, 'Super Admin update'),
+          )
+          .then(() => refreshBackendData())
+          .catch((err) => console.warn('Backend sync note:', err));
+      }
+    }
   };
 
   // Handle Owner Update
@@ -263,7 +428,21 @@ export default function SuperAdminDashboard() {
       `Owner account ${editOwner.email} updated successfully`,
     );
 
-    if (ok) setEditOwner(null);
+    if (ok) {
+      const ownerId = editOwner.id;
+      setEditOwner(null);
+
+      if (backendConnected && ownerId) {
+        superAdminApi
+          .updateOwner(ownerId, {
+            name: editOwnerName.trim(),
+            email: editOwnerEmail.trim().toLowerCase(),
+            status: editOwnerActive ? 'ACTIVE' : 'INACTIVE',
+          })
+          .then(() => refreshBackendData())
+          .catch((err) => console.warn('Backend sync note:', err));
+      }
+    }
   };
 
   // Handle Ticket Resolution Update
@@ -287,10 +466,31 @@ export default function SuperAdminDashboard() {
     );
 
     if (ok) {
+      const ticketId = selectedTicket.id;
       setSelectedTicket(null);
       setTicketResolution('');
       setAdminReply('');
       setAdminReplyAttachments([]);
+
+      if (backendConnected && ticketId) {
+        const promises = [
+          superAdminApi.updateTicket(ticketId, {
+            status: ticketStatus,
+            priority: ticketPriority,
+            resolutionNotes: ticketResolution.trim(),
+          }),
+        ];
+        if (adminReply.trim()) {
+          promises.push(
+            superAdminApi.addTicketReply(ticketId, {
+              message: adminReply.trim(),
+            }),
+          );
+        }
+        Promise.all(promises)
+          .then(() => refreshBackendData())
+          .catch((err) => console.warn('Backend ticket note:', err));
+      }
     }
   };
 
@@ -320,6 +520,19 @@ export default function SuperAdminDashboard() {
       setCreateTicketModal(false);
       setNewTicketTitle('');
       setNewTicketDescription('');
+
+      if (backendConnected) {
+        superAdminApi
+          .createTicket({
+            tenantCode: newTicketTenant,
+            title: newTicketTitle.trim(),
+            category: newTicketCategory,
+            priority: newTicketPriority,
+            description: newTicketDescription.trim(),
+          })
+          .then(() => refreshBackendData())
+          .catch((err) => console.warn('Backend ticket note:', err));
+      }
     }
   };
 
@@ -333,6 +546,13 @@ export default function SuperAdminDashboard() {
       },
       'Platform configuration parameters saved successfully',
     );
+
+    if (backendConnected) {
+      superAdminApi
+        .updateConfig(configState)
+        .then(() => refreshBackendData())
+        .catch((err) => console.warn('Backend config note:', err));
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -348,6 +568,27 @@ export default function SuperAdminDashboard() {
     return true;
   });
 
+  const BackendStatusPill = () => (
+    <div
+      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border shadow-xs select-none"
+      style={{
+        backgroundColor: backendConnected ? '#ECFDF5' : '#FFFBEB',
+        borderColor: backendConnected ? '#A7F3D0' : '#FDE68A',
+        color: backendConnected ? '#065F46' : '#92400E',
+      }}
+      title={
+        backendConnected
+          ? 'Live API connection active (Spring Boot backend :8080)'
+          : 'Backend unreachable. Operating in local sandbox mode.'
+      }
+    >
+      <span
+        className={`w-2 h-2 rounded-full ${backendConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}
+      />
+      <span>{backendConnected ? 'Backend Live (:8080)' : 'Sandbox Mode'}</span>
+    </div>
+  );
+
   const renderHeader = () => {
     switch (currentTab) {
       case 'tenants':
@@ -356,6 +597,19 @@ export default function SuperAdminDashboard() {
             eyebrow="RRMS PLATFORM GOVERNANCE · MULTI-TENANCY"
             title="Resort Properties & Multi-Tenant Shards"
             description="Super Admin provisions and maintains resort properties and links them to primary Owners."
+            actions={
+              <div className="flex items-center gap-2">
+                <BackendStatusPill />
+                <Button
+                  size="sm"
+                  onClick={() => setCreateTenantModal(true)}
+                  className="flex items-center gap-1.5 bg-[#C9A227] hover:bg-[#B38F1E] text-white"
+                >
+                  <Plus size={15} />
+                  Provision Resort & Owner
+                </Button>
+              </div>
+            }
           />
         );
       case 'owners':
@@ -364,6 +618,7 @@ export default function SuperAdminDashboard() {
             eyebrow="RRMS PLATFORM GOVERNANCE · PRIMARY EXECUTIVES"
             title="Resort Owner Accounts Management"
             description="Super Admin manages high-level Owner identities across all tenants. Staff & guests are managed downstream by Owners."
+            actions={<BackendStatusPill />}
           />
         );
       case 'tickets':
@@ -373,21 +628,39 @@ export default function SuperAdminDashboard() {
             title="Resort Support Tickets & Workflow Issues"
             description="Technical incidents, gateway issues, and integration escalations reported by Resort Owners."
             actions={
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setTelemetrySyncing(true);
-                  setTimeout(() => {
-                    setTelemetrySyncing(false);
-                    toast.success('Incident queue refreshed from shard telemetry');
-                  }, 600);
-                }}
-                className="flex items-center gap-1.5"
-              >
-                <RefreshCw size={14} className={telemetrySyncing ? 'animate-spin' : ''} />
-                Refresh Incidents
-              </Button>
+              <div className="flex items-center gap-2">
+                <BackendStatusPill />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setTelemetrySyncing(true);
+                    if (backendConnected) {
+                      refreshBackendData().finally(() => {
+                        setTelemetrySyncing(false);
+                        toast.success('Incident queue refreshed from backend database');
+                      });
+                    } else {
+                      setTimeout(() => {
+                        setTelemetrySyncing(false);
+                        toast.success('Incident queue refreshed from shard telemetry');
+                      }, 600);
+                    }
+                  }}
+                  className="flex items-center gap-1.5"
+                >
+                  <RefreshCw size={14} className={telemetrySyncing ? 'animate-spin' : ''} />
+                  Refresh Incidents
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setCreateTicketModal(true)}
+                  className="flex items-center gap-1.5 bg-[#C9A227] hover:bg-[#B38F1E] text-white"
+                >
+                  <Plus size={15} />
+                  Open Incident
+                </Button>
+              </div>
             }
           />
         );
@@ -397,6 +670,7 @@ export default function SuperAdminDashboard() {
             eyebrow="RRMS PLATFORM GOVERNANCE · CLUSTER PARAMETERS"
             title="Platform Governance & Infrastructure Configuration"
             description="Global cluster parameters, security policies, maintenance mode, and resource allocation."
+            actions={<BackendStatusPill />}
           />
         );
       case 'audit':
@@ -406,27 +680,60 @@ export default function SuperAdminDashboard() {
             title="Platform Security & Governance Audit Trail"
             description="Complete audit record of provisioning actions, credential updates, configuration changes, and incident resolution."
             actions={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  downloadCsv(
-                    `platform-audit-logs-${today()}.csv`,
-                    auditLogs.map((l) => ({
-                      ID: l.id,
-                      Timestamp: l.timestamp,
-                      Actor: l.actor,
-                      Action: l.action,
-                      Tenant: l.tenantCode || 'PLATFORM',
-                      Severity: l.severity,
-                      Details: l.details,
-                    })),
-                  )
-                }
-                className="flex items-center gap-1.5"
-              >
-                <Download size={14} /> Export Audit CSV
-              </Button>
+              <div className="flex items-center gap-2">
+                <BackendStatusPill />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (backendConnected) {
+                      superAdminApi
+                        .exportAuditCsv()
+                        .then((blob) => {
+                          const url = window.URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `platform-audit-logs-${today()}.csv`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          window.URL.revokeObjectURL(url);
+                          toast.success('Exported audit logs from backend database');
+                        })
+                        .catch(() => {
+                          downloadCsv(
+                            `platform-audit-logs-${today()}.csv`,
+                            auditLogs.map((l) => ({
+                              ID: l.id,
+                              Timestamp: l.timestamp,
+                              Actor: l.actor,
+                              Action: l.action,
+                              Tenant: l.tenantCode || 'PLATFORM',
+                              Severity: l.severity,
+                              Details: l.details,
+                            })),
+                          );
+                        });
+                    } else {
+                      downloadCsv(
+                        `platform-audit-logs-${today()}.csv`,
+                        auditLogs.map((l) => ({
+                          ID: l.id,
+                          Timestamp: l.timestamp,
+                          Actor: l.actor,
+                          Action: l.action,
+                          Tenant: l.tenantCode || 'PLATFORM',
+                          Severity: l.severity,
+                          Details: l.details,
+                        })),
+                      );
+                    }
+                  }}
+                  className="flex items-center gap-1.5"
+                >
+                  <Download size={14} /> Export Audit CSV
+                </Button>
+              </div>
             }
           />
         );
@@ -437,21 +744,32 @@ export default function SuperAdminDashboard() {
             title="Infrastructure Telemetry & Runtime Sharding"
             description="Live node metrics, JVM heap memory, database connection pool, and security counters."
             actions={
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setTelemetrySyncing(true);
-                  setTimeout(() => {
-                    setTelemetrySyncing(false);
-                    toast.success('Telemetry counters refreshed from distributed nodes');
-                  }, 600);
-                }}
-                className="flex items-center gap-1.5"
-              >
-                <RefreshCw size={14} className={telemetrySyncing ? 'animate-spin' : ''} />
-                Sync Telemetry
-              </Button>
+              <div className="flex items-center gap-2">
+                <BackendStatusPill />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setTelemetrySyncing(true);
+                    if (backendConnected) {
+                      superAdminApi.syncCluster().catch(() => {});
+                      refreshBackendData().finally(() => {
+                        setTelemetrySyncing(false);
+                        toast.success('Telemetry counters refreshed from live Spring Boot backend');
+                      });
+                    } else {
+                      setTimeout(() => {
+                        setTelemetrySyncing(false);
+                        toast.success('Telemetry counters refreshed from distributed nodes');
+                      }, 600);
+                    }
+                  }}
+                  className="flex items-center gap-1.5"
+                >
+                  <RefreshCw size={14} className={telemetrySyncing ? 'animate-spin' : ''} />
+                  Sync Telemetry
+                </Button>
+              </div>
             }
           />
         );
@@ -464,15 +782,24 @@ export default function SuperAdminDashboard() {
             description="Global platform administration: provision resort tenants and primary owners, resolve technical escalations, and manage platform configuration."
             actions={
               <div className="flex items-center gap-2">
+                <BackendStatusPill />
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
                     setTelemetrySyncing(true);
-                    setTimeout(() => {
-                      setTelemetrySyncing(false);
-                      toast.success('Telemetry synchronized with distributed tenant shards');
-                    }, 600);
+                    if (backendConnected) {
+                      superAdminApi.syncCluster().catch(() => {});
+                      refreshBackendData().finally(() => {
+                        setTelemetrySyncing(false);
+                        toast.success('Telemetry synchronized with live backend');
+                      });
+                    } else {
+                      setTimeout(() => {
+                        setTelemetrySyncing(false);
+                        toast.success('Telemetry synchronized with distributed tenant shards');
+                      }, 600);
+                    }
                   }}
                   className="flex items-center gap-1.5"
                 >
@@ -679,9 +1006,12 @@ export default function SuperAdminDashboard() {
                   <Button
                     size="sm"
                     variant={config.maintenanceMode ? 'destructive' : 'outline'}
-                    onClick={() =>
-                      act({ type: 'superadmin.maintenance.toggle' }, 'Maintenance mode updated')
-                    }
+                    onClick={() => {
+                      act({ type: 'superadmin.maintenance.toggle' }, 'Maintenance mode updated');
+                      if (backendConnected) {
+                        superAdminApi.toggleMaintenance().then(() => refreshBackendData()).catch(() => {});
+                      }
+                    }}
                   >
                     {config.maintenanceMode ? 'Enabled' : 'Disabled'}
                   </Button>
